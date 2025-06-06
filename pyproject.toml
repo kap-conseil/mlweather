@@ -7,7 +7,11 @@ authors = [
     { name = "julien-kap", email = "jgooris@kap.bzh" }
 ]
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "dotenv>=0.9.9",
+    "polars>=1.30.0",
+    "requests>=2.32.3",
+]
 
 [build-system]
 requires = ["hatchling"]
