@@ -51,6 +51,7 @@ def test_prepare_hourly_raw_observations():
 
 
 def test_Observations():
+    # Check if the Observations class can evaluate the regularity
     assert Observations.is_regular_time(
         prepare_hourly_raw_observations(
             DataFrame(
@@ -62,11 +63,12 @@ def test_Observations():
             )
         )
     )
+    #
     obs = Observations.get_obs(
         (0.0, 0.0),
         ["precipitation", "temperature_2m"],
-        datetime(2020, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-        datetime(2024, 1, 2, 0, 0, 0, tzinfo=timezone.utc),
+        datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+        datetime(2023, 12, 31, 0, 0, 0, tzinfo=timezone.utc),
         verbose=True,
     )
 
@@ -75,3 +77,4 @@ def test_Observations():
     assert "dt_target" in obs.values.columns
     assert "precipitation" in obs.values.columns
     assert "temperature_2m" in obs.values.columns
+    assert obs.values.shape[0] == (365 * 24)  # At least one year of hourly data
