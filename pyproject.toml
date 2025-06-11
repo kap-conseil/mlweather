@@ -1,6 +1,6 @@
 [project]
 name = "mlweather"
-version = "0.1.0"
+version = "0.1.1"
 description = "A package to collect and prepare weather data for ml jobs - based on the Open-Meteo weather source"
 readme = "README.md"
 authors = [
