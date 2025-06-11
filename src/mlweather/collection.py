@@ -112,6 +112,33 @@ class Observations:
         retry_delay: float = 2.0,
         verbose: bool = False,
     ):
+        """
+        Retrieve weather observations from Open-Meteo API (hourly data) for a specified location and time period.
+
+        This class method fetches historical weather data from the Open-Meteo archive API,
+        supporting both free and commercial API access. It validates input parameters,
+        constructs the API request, handles the response, and returns structured observations.
+
+        Args:
+            lat_lon (tuple[float, float]): Latitude and longitude coordinates as a tuple.
+            measure_names (list[str]): List of weather measurement names to retrieve.
+                Must be from the ADMISSIBLE_MEASURES measures list.
+            start_date (datetime): Start date for the data retrieval period. By default supposes UTC if no timezone provided.
+            end_date (datetime): End date for the data retrieval period. By default supposes UTC if no timezone provided.
+            api_key (str | None, optional): API key for commercial access. If None,
+                uses the free archive API. Defaults to None.
+            max_retries (int, optional): Maximum number of retry attempts for failed requests.
+                Defaults to 2.
+            retry_delay (float, optional): Delay in seconds between retry attempts.
+                Defaults to 2.0.
+            verbose (bool, optional): If True, prints the query URL for debugging.
+                Defaults to False.
+
+        Returns:
+            cls: An instance of the class containing the retrieved weather observations
+            with location coordinates, elevation, measurement units, hourly values,
+            and regularity information.
+        """
         # Check arguments
         # Is it an admissible measure?
         diff = set(measure_names) - set([n.name for n in ADMISSIBLE_MEASURES])
