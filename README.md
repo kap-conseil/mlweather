@@ -18,7 +18,7 @@ From a specific branch, you can specify the branch name in the URL:
 uv add mlweather "ssh://git@github.com/kap-conseil/mlweather.git@dev"
 ```
 
-With a PAT toke for automated deployments: 
+With a PAT token for automated deployments: 
 ```bash
 uv add mlweather "https://<YOUR PAT TOKEN>@github.com/kap-conseil/mlweather.git"
 ```
