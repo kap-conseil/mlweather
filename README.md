@@ -4,7 +4,7 @@
 - Rely on Polars for fast data processing.
 
 ## Current version 
-0.1.0
+0.1.2
 
 ## Installation (with uv package manager)
 
@@ -15,7 +15,7 @@ uv add mlweather "git+ssh://git@github.com/kap-conseil/mlweather.git"
 
 From a specific branch, you can specify the branch name in the URL:
 ```bash
-uv add mlweather "ssh://git@github.com/kap-conseil/mlweather.git@dev"
+uv add mlweather "git+ssh://git@github.com/kap-conseil/mlweather.git@dev"
 ```
 
 With a PAT token for automated deployments: 

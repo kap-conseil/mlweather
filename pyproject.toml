@@ -1,6 +1,6 @@
 [project]
 name = "mlweather"
-version = "0.1.1"
+version = "0.1.2"
 description = "A package to collect and prepare weather data for ml jobs - based on the Open-Meteo weather source"
 readme = "README.md"
 authors = [
@@ -8,7 +8,6 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "numpy>=2.3.0",
     "polars>=1.30.0",
     "pytest>=8.4.0",
     "pytest-cov>=6.1.1",
