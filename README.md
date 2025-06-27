@@ -10,7 +10,7 @@
 
 From your private Github repository, you can install the package using the `uv` package manager:
 ```bash
-uv add mlweather "ssh://git@github.com/kap-conseil/mlweather.git"
+uv add mlweather "git+ssh://git@github.com/kap-conseil/mlweather.git"
 ```
 
 From a specific branch, you can specify the branch name in the URL:
