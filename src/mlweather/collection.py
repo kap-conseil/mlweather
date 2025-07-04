@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from requests import get, Request, Session
+from requests_cache import CachedSession
 from logging import debug, warning, error, info, critical
 
 
@@ -110,6 +111,7 @@ class Observations:
         api_key: str | None = None,
         max_retries: int = 2,
         retry_delay: float = 2.0,
+        caching: bool = False,
         verbose: bool = False,
     ):
         """
@@ -170,9 +172,16 @@ class Observations:
         # Print the full URL before sending the request
         if verbose:
             info("Query URL:", prepared.url)
-        # Request data and handle error
-        with Session() as session:
-            response = session.send(prepared)
+
+        if not caching:
+            with Session() as session:
+                response = session.send(prepared)
+        else:
+            # Use a shared session instance for caching
+            if not hasattr(cls, "_cached_session"):
+                cls._cached_session = CachedSession(backend="memory", expire_after=3600)
+
+            response = cls._cached_session.send(prepared)
         # Explicit error if error in response json
         try:
             if "error" in response.json():

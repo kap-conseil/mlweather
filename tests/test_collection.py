@@ -63,13 +63,24 @@ def test_Observations():
             )
         )
     )
-    #
+    # without caching
     obs = Observations.get_obs(
         (0.0, 0.0),
         ["precipitation", "temperature_2m"],
         datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
         datetime(2023, 12, 31, 0, 0, 0, tzinfo=timezone.utc),
         verbose=True,
+        caching=False,
+    )
+
+    # with caching
+    obs = Observations.get_obs(
+        (0.0, 0.0),
+        ["precipitation", "temperature_2m"],
+        datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+        datetime(2023, 12, 31, 0, 0, 0, tzinfo=timezone.utc),
+        verbose=True,
+        caching=True,
     )
 
     assert isinstance(obs, Observations)
