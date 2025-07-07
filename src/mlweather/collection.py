@@ -179,7 +179,9 @@ class Observations:
         else:
             # Use a shared session instance for caching
             if not hasattr(cls, "_cached_session"):
-                cls._cached_session = CachedSession(backend="memory", expire_after=3600)
+                cls._cached_session = CachedSession(
+                    backend="memory", expire_after=3600 * 24
+                )
 
             response = cls._cached_session.send(prepared)
         # Explicit error if error in response json
