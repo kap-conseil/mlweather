@@ -1,5 +1,7 @@
 # MLWeather
 
+**Version: 0.1.5**
+
 A high-performance Python library for collecting and preparing ML-ready weather observations and forecasts.
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
@@ -14,7 +16,7 @@ A high-performance Python library for collecting and preparing ML-ready weather 
 
 ## Installation
 
-### From source with uv
+### From source with uv0.1
 
 ```bash
 uv add mlweather "git+ssh://git@github.com/kap-conseil/mlweather.git"
