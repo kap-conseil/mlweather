@@ -33,6 +33,7 @@ ADMISSIBLE_MEASURES = [
     Measure("precipitation", "mm", float, "Preceding hour sum"),
     Measure("temperature_2m", "°C", float, "Instant"),
     Measure("wind_speed_10m", "km/h", float, "Instant"),
+    Measure("wind_direction_10m", "°", float, "Instant"),
     Measure("relative_humidity_2m", "%", float, "Instant"),
     Measure("shortwave_radiation", "W/m²", float, "Preceding hour mean"),
     Measure("global_tilted_irradiance", "W/m²", float, "Preceding hour mean"),
