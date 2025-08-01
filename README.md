@@ -16,10 +16,13 @@ A high-performance Python library for collecting and preparing ML-ready weather 
 
 ## Installation
 
-### From source with uv0.1
+### From source with uv
 
 ```bash
+# SSH
 uv add mlweather "git+ssh://git@github.com/kap-conseil/mlweather.git"
+# HTTPS (with .netrc file configured)
+uv add mlweather "git+https://github.com/kap-conseil/mlweather.git"
 ```
 
 For specific branch:
