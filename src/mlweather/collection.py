@@ -38,6 +38,44 @@ ADMISSIBLE_MEASURES = [
     Measure("shortwave_radiation", "W/m²", float, "Preceding hour mean"),
     Measure("global_tilted_irradiance", "W/m²", float, "Preceding hour mean"),
     Measure("et0_fao_evapotranspiration", "mm", float, "Preceding hour sum"),
+
+    Measure("dew_point_2m", "°C", float, "Instant"),
+    Measure("apparent_temperature", "°C", float, "Instant"),
+    Measure("pressure_msl", "hPa", float, "Instant"),
+    Measure("surface_pressure", "hPa", float, "Instant"),
+
+    Measure("rain", "mm", float, "Preceding hour sum"),
+    Measure("snowfall", "cm", float, "Preceding hour sum"),
+
+    Measure("cloud_cover", "%", float, "Instant"),
+    Measure("cloud_cover_low", "%", float, "Instant"),
+    Measure("cloud_cover_mid", "%", float, "Instant"),
+    Measure("cloud_cover_high", "%", float, "Instant"),
+
+    Measure("direct_radiation", "W/m²", float, "Preceding hour mean"),
+    Measure("direct_normal_irradiance", "W/m²", float, "Preceding hour mean"),
+    Measure("diffuse_radiation", "W/m²", float, "Preceding hour mean"),
+
+    Measure("sunshine_duration", "s", float, "Preceding hour sum"),
+
+    Measure("wind_speed_100m", "km/h", float, "Instant"),
+    Measure("wind_direction_100m", "°", float, "Instant"),
+    Measure("wind_gusts_10m", "km/h", float, "Instant"),
+
+    Measure("weather_code", "WMO code", int, "Instant"),
+
+    Measure("snow_depth", "m", float, "Instant"),
+    Measure("vapour_pressure_deficit", "kPa", float, "Instant"),
+
+    Measure("soil_temperature_0_to_7cm", "°C", float, "Instant"),
+    Measure("soil_temperature_7_to_28cm", "°C", float, "Instant"),
+    Measure("soil_temperature_28_to_100cm", "°C", float, "Instant"),
+    Measure("soil_temperature_100_to_255cm", "°C", float, "Instant"),
+
+    Measure("soil_moisture_0_to_7cm", "m³/m³", float, "Instant"),
+    Measure("soil_moisture_7_to_28cm", "m³/m³", float, "Instant"),
+    Measure("soil_moisture_28_to_100cm", "m³/m³", float, "Instant"),
+    Measure("soil_moisture_100_to_255cm", "m³/m³", float, "Instant"),
 ]
 
 
