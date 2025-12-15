@@ -1,93 +1,60 @@
-import polars as pl
 from polars import (
     DataFrame,
     col,
     Datetime,
+    int_range,
     len as length,
     Float64,
+    UInt32,
     Expr,
     Duration,
     Series,
     when,
+    len as pl_len,
+    selectors as cs,
+    concat,
 )
 from datetime import datetime, timezone, timedelta
-
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 import os
 import re
 
 
-from mlweather.collection import (
-    Measure,
-    ADMISSIBLE_MEASURES,
+from mlweather.records import (
+    Variable,
+    ADMISSIBLE_VARIABLES,
     Observations,
-    prepare_hourly_raw_observations,
+    Forecasts,
 )
-from mlweather.aggregation import AggConfig, aggregate
 
 load_dotenv()
 
-# FETCH PAST DATA ##############################################################
+# FETCH OBSERVATIONS ##############################################################
 start_time = datetime.now(timezone.utc)
 
-obs = Observations.get_obs(
-    (0.0, 0.0),
+temp = Observations.collect(
+    (48.0, -2.0),
     [
         "precipitation",
         "temperature_2m",
     ],
     datetime(2010, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
     datetime(2024, 1, 2, 0, 0, 0, tzinfo=timezone.utc),
-    api_key=os.getenv("OPENMETEO_API_KEY"),
-    # api_key="z",
-    verbose=True,
-    caching=False,
+    # api_key=os.getenv("OPENMETEO_API_KEY"),
+    api_key=None,
+    verbose=False,
 )
-print(f"Data fetched in {datetime.now(timezone.utc) - start_time} seconds.")
 
-start_time = datetime.now(timezone.utc)
-
-obs = Observations.get_obs(
-    (0.0, 0.0),
+temp = Forecasts.collect(
+    (48.0, -2.0),
     [
         "precipitation",
         "temperature_2m",
     ],
-    datetime(2010, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-    datetime(2024, 1, 2, 0, 0, 0, tzinfo=timezone.utc),
-    api_key=os.getenv("OPENMETEO_API_KEY"),
-    # api_key="z",
-    caching=True,
-    verbose=True,
+    datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+    datetime(2025, 1, 2, 0, 0, 0, tzinfo=timezone.utc),
+    (0, 2),
 )
-print(f"Data fetched in {datetime.now(timezone.utc) - start_time} seconds.")
 
-# # Define the aggregations
-# agg_config = [
-#     AggConfig(col("precipitation").sum(), timedelta(days=1)),
-#     AggConfig(col("precipitation").sum(), timedelta(days=7)),
-#     AggConfig(col("temperature_2m").mean(), timedelta(days=1)),
-#     AggConfig(col("temperature_2m").mean(), timedelta(days=7)),
-# ]
-
-
-# start_time = datetime.now(timezone.utc)
-# temp = aggregate(obs.values, agg_config)
-# print(f"Aggregation completed in {datetime.now(timezone.utc) - start_time} seconds.")
-
-
-# obs = Observations.get_obs(
-#     (0.0, 0.0),
-#     ["precipitation", "temperature_2m"],
-#     datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-#     datetime(2023, 12, 31, 0, 0, 0, tzinfo=timezone.utc),
-#     verbose=True,
-# )
-
-# agg_config = [
-#     AggConfig(col("precipitation").sum(), timedelta(days=1)),
-#     AggConfig(col("temperature_2m").mean(), timedelta(days=1)),
-# ]
-
-# aggregated_df = aggregate(obs.values, agg_config)
+READY FOR PREPARE INIT_DATETIME (rounded to day) 
