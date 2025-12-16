@@ -98,23 +98,20 @@ class Observations(Records):
         hourly_values = Observations.prepare_hourly_records(resp_dict).with_columns(
             lit(None).cast(Datetime).alias("init_datetime")
         )
+        # Reorder and sort columns
+        hourly_values = Records.reorder_columns(hourly_values).sort(
+            "init_datetime", "valid_datetime"
+        )
 
         # Check regular time grid within init_datetime
         Records.is_obs_regular_time(hourly_values)
-
-        # Reorder with valid and intit datetimes first
-        hourly_values = hourly_values.select(
-            "init_datetime",
-            "valid_datetime",
-            cs.exclude("init_datetime", "valid_datetime"),
-        )
 
         # Prepare the observations with the hourly table
         obs = cls(
             (resp_dict["latitude"], resp_dict["longitude"]),
             resp_dict["elevation"],
             units,
-            hourly_values.sort("init_datetime", "valid_datetime"),
+            hourly_values,
         )
 
         return obs

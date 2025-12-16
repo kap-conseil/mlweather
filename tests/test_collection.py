@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from polars import DataFrame, col
 
-from mlweather.collection import (
+from mlweather.records import (
     Observations,
     Measure,
     ADMISSIBLE_MEASURES,

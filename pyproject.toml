@@ -25,4 +25,5 @@ dev = [
     "mypy>=1.19.1",
     "pytest>=8.4.0",
     "python-dotenv>=1.1.0",
+    "xlsxwriter>=3.2.9",
 ]

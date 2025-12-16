@@ -22,6 +22,10 @@ import re
 
 from mlweather.collection.observations import Observations
 from mlweather.collection.forecasts import Forecasts
+from mlweather.aggregation import (
+    Aggregation,
+    FeatureGenerator,
+)
 
 load_dotenv()
 
@@ -48,7 +52,12 @@ temp = Forecasts.collect(
         "temperature_2m",
     ],
     datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
-    datetime(2025, 1, 2, 0, 0, 0, tzinfo=timezone.utc),
-    (0, 8),
+    datetime(2024, 1, 2, 0, 0, 0, tzinfo=timezone.utc),
+    (0, 7),
     api_key=os.getenv("WEATHERAPI_API_KEY"),
 )
+
+agg = Aggregation(col("temperature_2m").mean(), observation_period=timedelta(days=7))
+start_time = datetime.now(timezone.utc)
+FeatureGenerator([agg]).generate_features(observations=temp)
+print(datetime.now(timezone.utc) - start_time)

@@ -219,6 +219,26 @@ class Forecasts(Records):
 
         # Add the init_datetime column: round down valid_datetime to day and subtract past days
         hourly_values = Forecasts.add_initial_datetime(hourly_values)
+        # Clean columns and names
+        # drop the useless past_day column
+        hourly_values = (
+            hourly_values
+            # drop the "_previous_day0" suffix in columns names (only if ending with it)
+            .rename(
+                {
+                    c: c.removesuffix("_previous")
+                    for c in hourly_values.columns
+                    if c.endswith("_previous")
+                }
+            )
+        )
+
+        # Reorder and sort columns
+        hourly_values = Records.reorder_columns(hourly_values).sort(
+            "init_datetime", "valid_datetime"
+        )
+        # Check regular time grid within init_datetime
+        Records.is_obs_regular_time(hourly_values)
 
         return cls(
             (resp_dict["latitude"], resp_dict["longitude"]),

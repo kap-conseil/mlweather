@@ -102,11 +102,11 @@ class Records(ABC):
         diffs = (
             record_table.sort("init_datetime", "valid_datetime")
             .with_columns(
-                (col("valid_datetime") - col("valid_datetime").shift(1)).alias("diff"),
-                by="init_datetime",
-            )  # Drop first row with of group (using the row number)
-            .with_columns((int_range(pl_len()).alias("index")), by="init_datetime")
-            .remove(col("index") == 0)
+                (col("valid_datetime") - col("valid_datetime").shift(1))
+                .over("init_datetime")
+                .alias("diff"),
+            )
+            .filter(col("diff").is_not_null())
         )["diff"].value_counts()
 
         if diffs.shape[0] != 1:
@@ -133,6 +133,15 @@ class Records(ABC):
         )
 
         return hourly_values
+
+    @staticmethod
+    # Reorder with valid and init datetimes first
+    def reorder_columns(hourly_values: DataFrame) -> DataFrame:
+        return hourly_values.select(
+            "init_datetime",
+            "valid_datetime",
+            cs.exclude("init_datetime", "valid_datetime"),
+        )
 
     @staticmethod
     def select_api_url(
