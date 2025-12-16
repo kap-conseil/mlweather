@@ -9,11 +9,10 @@ from polars import (
     len as pl_len,
 )
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from requests import Request, Session
 from functools import reduce
-
 
 # METEOROLOGICAL VARIABLES #####################################################
 
@@ -104,6 +103,7 @@ ADMISSIBLE_VARIABLES = set(
 def to_utc_safe(dt: datetime, assume_tz=ZoneInfo("UTC")) -> datetime:
     if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
         dt = dt.replace(tzinfo=assume_tz)
+
     return dt.astimezone(timezone.utc)
 
 
@@ -143,7 +143,7 @@ class Records(ABC):
 
     def __repr__(self) -> str:
         return f"""
-        Records at {self.lat_lon} with {self.record_table} hourly entries.
+        Records at {self.lat_lon} with {self.record_table.shape[0]} hourly entries.
         Elevation: {self.elevation} m
         Units: {self.units}
         Record Table:
@@ -173,8 +173,6 @@ class Records(ABC):
         with Session() as session:
             response = session.send(prepared)
         content = response.json()
-        print(content)
-        print("error" in content)
         # Explicit error if error in response json
         if "error" in content:
             raise ValueError(f"Request error: {content['reason']}")
@@ -359,21 +357,6 @@ class Observations(Records):
         return obs
 
 
-def validate_past_day_range(past_days_range: tuple[int, int]) -> tuple[int, int]:
-    if (
-        not isinstance(past_days_range, tuple)
-        or len(past_days_range) != 2
-        or not all(isinstance(day, int) for day in past_days_range)
-        or past_days_range[0] < 0
-        or past_days_range[1] < past_days_range[0]
-    ):
-        raise ValueError(
-            "past_days_range must be a tuple of two non-negative integers (start_day, end_day) with end_day >= start_day."
-        )
-
-    return past_days_range
-
-
 class Forecasts(Records):
     """
     Class representing weather forecasts with metadata.
@@ -403,6 +386,16 @@ class Forecasts(Records):
     def rename_day0_columns(
         record_table: DataFrame, queried_past_day_variables: list[str]
     ):
+        """
+        Rename the columns corresponding to previous_day0 to have a consistent naming
+        convention with the other previous days (i.e., adding _previous_day0 suffix).
+        Args:
+            record_table (DataFrame): The DataFrame containing the weather records.
+            queried_past_day_variables (list[str]): List of variable names that were queried
+                for previous days (with _previous_dayX suffix).
+        Returns:
+            DataFrame: The DataFrame with renamed columns for previous_day0 variables.
+        """
         # Get varaiables in day0
         days0_weather_variables = (
             set(record_table.columns)
@@ -417,6 +410,15 @@ class Forecasts(Records):
 
     @staticmethod
     def melt_by_weather_variable(hourly_records: DataFrame):
+        """
+        Melt the hourly records DataFrame (wide) to have one row per valid_datetime and past_day (new long side)
+        for each weather variable.
+        Args:
+            hourly_records (DataFrame): The DataFrame containing the weather records.
+        Returns:
+            list[DataFrame]: A list of DataFrames, each corresponding to a weather variable,
+                melted by past_day.
+        """
         # Identify the weather variables (without the _dayX suffix)
         groups_for_melt = {
             c.split("_day")[0]
@@ -439,6 +441,20 @@ class Forecasts(Records):
 
         return melted_records
 
+    @staticmethod
+    def add_initial_datetime(hourly_values):
+        # Round down valid_datetime to day and subtract past days
+        hourly_values = hourly_values.with_columns(
+            (
+                (
+                    col("valid_datetime").dt.truncate("1d")
+                    - (col("past_day") * timedelta(days=1))
+                ).alias("init_datetime")
+            )
+        ).remove(col("past_day"))
+
+        return hourly_values
+
     @classmethod
     def collect(
         cls,
@@ -450,6 +466,28 @@ class Forecasts(Records):
         api_key: str | None = None,
         verbose: bool = False,
     ):
+        """
+        Retrieve weather forecasts from Open-Meteo API (hourly data) for a specified location and a time period,
+        given for the past days horizons of forecast.
+        This class method fetches forecast weather data from the Open-Meteo previous runs API,
+        supporting both free and commercial API access. It validates input parameters,
+        constructs the API request, handles the response, and returns structured forecasts.
+        Args:
+            lat_lon (tuple[float, float]): Latitude and longitude coordinates as a tuple.
+            variables_names (list[str]): List of weather measurement variable names to retrieve.
+                Must be from the ADMISSIBLE_VARIABLES list.
+            start_date (datetime): Start date for the data retrieval period. By default supposes UTC if no timezone provided.
+            end_date (datetime): End date for the data retrieval period. By default supposes UTC if no timezone provided.
+            past_forecast_days_range (tuple[int, int]): Tuple indicating the range of past forecast days to retrieve (start_day, end_day).
+            api_key (str | None, optional): API key for commercial access. If None,
+                uses the free previous runs API. Defaults to None.
+            verbose (bool, optional): If True, prints the query URL for debugging.
+                Defaults to False.
+        Returns:
+            cls: An instance of the class containing the retrieved weather forecasts
+            with location coordinates, elevation, measurement units, hourly values,
+            and past days range information.
+        """
         # Check arguments
         cls.are_var_names_valid(variables_names)
         past_days_range = validate_past_day_range(past_forecast_days_range)
@@ -491,26 +529,27 @@ class Forecasts(Records):
 
         # Preapre the hourly records and transform to long per meteo var (along the previous days)
         hourly_values = Forecasts.prepare_hourly_records(resp_dict)
-
+        # Rename and transform into long (over the past days), with several dataframes (one per weather variable)
         hourly_values = Forecasts.rename_day0_columns(
             hourly_values, all_measures_with_past_days
         )
-
         hourly_values = Forecasts.melt_by_weather_variable(hourly_values)
-
+        # Join all the melted dataframes on valid_datetime and past_day,
+        # to have a wide table but not column by past day
         hourly_values = reduce(
             lambda left, right: left.join(
                 right, on=["valid_datetime", "past_day"], how="inner"
             ),
             hourly_values,
         )
-        # Prepare the observations with the hourly table
-        fore = cls(
+
+        # Add the init_datetime column: round down valid_datetime to day and subtract past days
+        hourly_values = Forecasts.add_initial_datetime(hourly_values)
+
+        return cls(
             (resp_dict["latitude"], resp_dict["longitude"]),
             resp_dict["elevation"],
             units,
             past_days_range,
             hourly_values,
         )
-
-        return fore

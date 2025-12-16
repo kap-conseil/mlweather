@@ -20,13 +20,8 @@ from dotenv import load_dotenv
 import os
 import re
 
-
-from mlweather.records import (
-    Variable,
-    ADMISSIBLE_VARIABLES,
-    Observations,
-    Forecasts,
-)
+from mlweather.collection.observations import Observations
+from mlweather.collection.forecasts import Forecasts
 
 load_dotenv()
 
@@ -42,7 +37,7 @@ temp = Observations.collect(
     datetime(2010, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
     datetime(2024, 1, 2, 0, 0, 0, tzinfo=timezone.utc),
     # api_key=os.getenv("OPENMETEO_API_KEY"),
-    api_key=None,
+    api_key=os.getenv("WEATHERAPI_API_KEY"),
     verbose=False,
 )
 
@@ -54,7 +49,6 @@ temp = Forecasts.collect(
     ],
     datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
     datetime(2025, 1, 2, 0, 0, 0, tzinfo=timezone.utc),
-    (0, 2),
+    (0, 8),
+    api_key=os.getenv("WEATHERAPI_API_KEY"),
 )
-
-READY FOR PREPARE INIT_DATETIME (rounded to day) 
