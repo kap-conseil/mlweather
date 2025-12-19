@@ -116,7 +116,7 @@ class Forecasts(Records):
         return melted_records
 
     @staticmethod
-    def add_initial_datetime(hourly_values):
+    def add_initial_datetime(hourly_values: DataFrame) -> DataFrame:
         # Round down valid_datetime to day and subtract past days
         hourly_values = hourly_values.with_columns(
             (
@@ -124,8 +124,10 @@ class Forecasts(Records):
                     col("valid_datetime").dt.truncate("1d")
                     - (col("past_day") * timedelta(days=1))
                 ).alias("init_datetime")
+                # Remove technical column
             )
-        ).remove(col("past_day"))
+        )
+        # .drop("past_day")
 
         return hourly_values
 
@@ -237,6 +239,7 @@ class Forecasts(Records):
         hourly_values = Records.reorder_columns(hourly_values).sort(
             "init_datetime", "valid_datetime"
         )
+        hourly_values.write_excel("debug_forecast_records.xlsx")
         # Check regular time grid within init_datetime
         Records.is_obs_regular_time(hourly_values)
 

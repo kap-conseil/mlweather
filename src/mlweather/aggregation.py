@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from polars import Expr, DataFrame, col, len as length, when, Series, Datetime
 from polars._utils.convert import parse_as_duration_string
 import re
+from functools import reduce
 
 from datetime import timedelta
 
@@ -125,12 +126,19 @@ class FeatureGenerator:
     def __init__(self, aggregations: list[Aggregation]) -> None:
         self.aggregations = aggregations
 
+    def unique_periods_sets(self) -> set:
+        periods = [
+            (agg.observation_period, agg.forecast_period) for agg in self.aggregations
+        ]
+
+        return set(periods)
+
     def generate_features(
         self,
         *,
         observations: Observations | None = None,
         forecasts: Forecasts | None = None,
-    ) -> DataFrame:
+    ):
         """
         Generate features based on the defined aggregations.
         Args:
@@ -146,146 +154,88 @@ class FeatureGenerator:
         elif isinstance(observations, Observations) and forecasts is None:
             # Perform all individual aggregations
             # collect a dataframe by aggregation defined
-            agg_df = []
-            for op in self.aggregations:
-                print(f"Applying aggregation period: {op.observation_period}")
-                if op.observation_period is None:
-                    raise ValueError(
-                        "Observation aggregations require an observation_period value."
+            aggregated_variables = []
+            # Iterate over all aggregations
+            for period_set in self.unique_periods_sets():
+                # Extract current aggregations for the period set
+                current_aggregations = [
+                    op
+                    for op in self.aggregations
+                    if (op.observation_period, op.forecast_period) == period_set
+                ]
+                # Prepare the expressions for the current period set
+                ops_in_period_set = [
+                    op.expression.alias(op.get_var_label())
+                    for op in current_aggregations
+                ]
+                new_col_names = [op.get_var_label() for op in current_aggregations]
+
+                print(ops_in_period_set)
+                # for op in self.aggregations:
+                # Check type for the rolling operation
+                # Apply the expression, lazily until the end
+                current_agg_table = (
+                    # Rolling groups
+                    observations.record_table.lazy().rolling(
+                        index_column="valid_datetime",
+                        period=period_set[0],
+                        offset=None,
+                        closed="right",
+                        group_by="init_datetime",
                     )
-                # Apply the expression
-                temp_agg = observations.record_table.rolling(
-                    index_column="valid_datetime",
-                    period=op.observation_period,
-                    offset=None,
-                    closed="right",
-                    group_by="init_datetime",
-                ).agg(length().alias("length"), op.expression.alias(op.get_var_label()))
-
-                # Replace incomplete aggregations with missing to make sure incomplete aggs are not kept
-                temp_agg = temp_agg.with_columns(
-                    when(col("length") == op.get_step_in_obs_period())
-                    .then(op.get_var_label())
-                    .otherwise(None)
-                    .alias(op.get_var_label())
+                ).agg(
+                    # Compute the control for dates included in the aggregation
+                    col("valid_datetime")
+                    .min()
+                    .alias(
+                        "valid_datetime_min_"
+                        + f"obs_{parse_as_duration_string(period_set[0])}"
+                    ),
+                    col("valid_datetime")
+                    .max()
+                    .alias(
+                        "valid_datetime_max_"
+                        + f"obs_{parse_as_duration_string(period_set[0])}"
+                    ),
+                    # Length of agg period
+                    length().alias(
+                        "valid_datetime_length_"
+                        + f"obs_{parse_as_duration_string(period_set[0])}"
+                    ),
+                    # Finally apply the expression
+                    *ops_in_period_set,
                 )
+                # Replace incomplete aggregations with missing to make sure incomplete aggs are not kept for each period set aggregrations
+                current_agg_table = current_agg_table.with_columns(
+                    [
+                        when(
+                            col(
+                                f"valid_datetime_length_obs_{parse_as_duration_string(period_set[0])}"
+                            )
+                            == current_aggregations[0].get_step_in_obs_period()
+                        )
+                        .then(col(col_name))
+                        .otherwise(None)
+                        .alias(col_name)
+                        for col_name in new_col_names
+                    ]
+                ).collect()
 
-                print(temp_agg)
-        #         # Drop the length column to allow repetited joins
-        #         temp_agg = temp_agg.drop("length")
+                # Store the individual aggregations before joining them
+                aggregated_variables.append(current_agg_table)
+                features = reduce(
+                    lambda left, right: left.join(
+                        right,
+                        on=["init_datetime", "valid_datetime"],
+                        how="inner",
+                        validate="1:1",
+                        nulls_equal=True,
+                    ),
+                    aggregated_variables,
+                )
+        elif observations is None and isinstance(forecasts, Forecasts):
+            pass
+        else:
+            raise TypeError("Both observations and forecast are not supported types")
 
-        #         # Store the individual aggregations before joining them
-        #         agg_df.append(temp_agg)
-
-        #     # Join all the individual aggregations into a single DataFrame
-        #     # Init the left side with dt before succeively joining the aggregations
-        #     out = obs_values.select(
-        #         "dt_target"
-        #     )  # Ensure dt_target is selected for joining
-        #     for i in range(len(agg_df)):
-        #         # All aggregations are joined to the left side
-        #         # Full join
-        #         out = out.join(agg_df[i], on="dt_target", how="left")
-        # elif observations is None and isinstance(forecasts, Forecasts):
-        #     pass
-        # else:
-        #     raise TypeError("Both observations and forecast are not supported types")
-        # # Implementation of feature generation logic goes here
-        return DataFrame()
-
-
-@dataclass
-class AggConfig:
-    """
-    Configuration for aggregation operations.
-    Each entry is a tuple of (aggregation operation, list of periods).
-    """
-
-    operation: Expr
-    period: str
-
-    def get_var_label(self) -> str:
-        """
-        Clean the string of the polar expression by replacing non-alphanumeric characters with underscores
-        and removing multiple consecutive underscores, then add duration
-        """
-        # Keep alpha num only
-        expr_str = re.sub(r"[^a-zA-Z0-9]+", "_", str(self.operation))
-        # Remove col mentions and leading/trailing underscores
-        expr_str = expr_str.replace("col", "").strip("_")
-        # Remove multiple underscores
-        expr_str = re.sub(r"_+", "_", expr_str)
-
-        # Add the duration to the label
-        cleaned = f"{expr_str}_{parse_as_duration_string(self.period)}"
-
-        return cleaned
-
-
-# def get_source_period(dt_serie: Series):
-#     """
-#     Get the number of source periods in the aggregation period
-#     """
-#     # Check that the type of the Polar Series is a Datetime
-#     if dt_serie.dtype != Datetime:
-#         raise TypeError("The series must be of type Datetime")
-
-#     # Extract unique time diffs
-#     time_diffs = dt_serie.diff().drop_nulls().value_counts()["dt_target"].to_list()
-#     # Check that we have only one duration
-#     if len(time_diffs) != 1:
-#         raise ValueError(
-#             f"The time series does not have a unique duration step => {time_diffs}"
-#         )
-#     return time_diffs[0]
-
-
-def aggregate(obs_values: DataFrame, agg_config: list[AggConfig]) -> DataFrame:
-    """
-    Aggregate observations based on the provided aggregation configuration.
-
-    Parameters:
-        obs_values (DataFrame): The DataFrame containing observation values.
-        agg_config (list[AggConfig]): List of aggregation configurations.
-
-    Returns:
-        DataFrame: DataFrame.
-    """
-    # Perform all individual aggregations
-    agg_df = []
-    for op in agg_config:
-        # Apply the expression
-        temp_agg = obs_values.rolling(
-            index_column="dt_target",
-            period=op.period,
-        ).agg(length().alias("length"), op.operation.alias(op.get_var_label()))
-        # Control incomplete aggregations
-        expected_length = op.period / get_dur_step(obs_values["dt_target"])
-        # Check if the float is convertible to a int to ensure round periods
-        if not expected_length % 1 == 0:
-            raise ValueError(
-                f"Period {op.period} is not evenly divisible by time step. Expected length: {expected_length}"
-            )
-        # Replace incomplete aggregations with missing to make sure incomplete aggs are not kept
-        temp_agg = temp_agg.with_columns(
-            when(col("length") == int(expected_length))
-            .then(op.get_var_label())
-            .otherwise(None)
-            .alias(op.get_var_label())
-        )
-
-        # Drop the length column to allow repetited joins
-        temp_agg = temp_agg.drop("length")
-
-        # Store the individual aggregations before joining them
-        agg_df.append(temp_agg)
-
-    # Join all the individual aggregations into a single DataFrame
-    # Init the left side with dt before succeively joining the aggregations
-    out = obs_values.select("dt_target")  # Ensure dt_target is selected for joining
-    for i in range(len(agg_df)):
-        # All aggregations are joined to the left side
-        # Full join
-        out = out.join(agg_df[i], on="dt_target", how="left")
-
-    return out
+        return features

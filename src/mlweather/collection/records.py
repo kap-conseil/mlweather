@@ -99,7 +99,7 @@ class Records(ABC):
             raise ValueError("Observations do not have regular time intervals")
 
         # The diff of ordered valid_datetime within each init_datetime is constant and unique
-        diffs = (
+        record_table = (
             record_table.sort("init_datetime", "valid_datetime")
             .with_columns(
                 (col("valid_datetime") - col("valid_datetime").shift(1))
@@ -107,11 +107,14 @@ class Records(ABC):
                 .alias("diff"),
             )
             .filter(col("diff").is_not_null())
-        )["diff"].value_counts()
+        )
+        record_table.write_excel("debug_obs_time_intervals.xlsx")
+        diffs = record_table["diff"].value_counts()
 
         if diffs.shape[0] != 1:
             raise ValueError(
                 "Observations do not have regular time intervals within init_datetimes"
+                f"found time steps {diffs}"
             )
 
         return None
