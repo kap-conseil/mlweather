@@ -5,6 +5,7 @@ from polars import (
     col,
     Datetime,
     date_range,
+    datetime_range,
     datetime_ranges,
     len as length,
     lit,
@@ -15,6 +16,7 @@ from polars import (
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 import os
+import timeit
 
 from mlweather.collection.observations import Observations
 from mlweather.collection.forecasts import Forecasts
@@ -68,12 +70,34 @@ aggs = [
 ]
 
 # Generate a range from  2024, 2, 20, 0, 0 to 2024, 7, 13, 0, 0 (daily)
-features_datetimes = date_range(
+features_datetimes = datetime_range(
     datetime(2024, 2, 20, 0, 0, 0, tzinfo=timezone.utc),
     datetime(2024, 7, 13, 0, 0, 0, tzinfo=timezone.utc),
     "1d",
     eager=True,
 ).to_list()
+
+def check_features_datetimes(
+    features_datetimes: list[Datetime], all_records: LazyFrame
+) -> bool:
+    """Check that all focal valid_datetime are present in the LazyFrame."""
+    # Valid datetimes present in the LazyFrame of weather records
+    weather_valid_datetimes = set(
+        (
+            all_records.select("valid_datetime")
+            .unique()
+            .sort("valid_datetime")
+            .collect()["valid_datetime"]
+            .to_list()
+        )
+    )
+    # Find datetime expected in the features that are not in the weather records
+    missing_datetimes = set(features_datetimes).difference(weather_valid_datetimes)
+   XXX Add error
+    return add return
+
+XXX => Transform the source (obs and fore) dateties to UTC
+XXX => Then check the 
 
 # 1/ Generate all records mixing the observations and forecasts (transformed to hourly init_datetime)
 all_records = FeatureGenerator._prepare_all_records(obs.record_table, fore.record_table)
@@ -98,8 +122,19 @@ for same_period_aggs in FeatureGenerator(aggs).get_same_period_aggregations():
     temp.append(concat(collect_all(plans_for_features), how="diagonal"))
 
 
-print(temp)
-
 print("Timer:", datetime.now(timezone.utc) - start_timer)
 
+
+
+
+
+all_records.select("valid_datetime").unique().sort("valid_datetime").collect()
 # 3/ Aggregate over the results to have a single row per focal valid_datetime
+
+time = timeit.timeit(
+    stmt="all_records.select(col('valid_datetime')).unique().sort('valid_datetime').collect()",
+    globals=globals(),
+    number=10,
+)
+
+print(f"Average: {time / 10_000:.9f} s")

@@ -168,6 +168,7 @@ class FeatureGenerator:
                         "init_datetime_raw",
                         "init_datetime_raw_end",
                         interval=timedelta(hours=1),
+                        time_zone="UTC",
                     ).alias("init_datetime")
                 )
                 # From compact (nested) form to long form
@@ -208,6 +209,51 @@ class FeatureGenerator:
         return groups_for_aggs
 
     @staticmethod
+    def label_periods(
+        observation_period: timedelta | None = None,
+        forecast_period: timedelta | None = None,
+    ) -> str:
+        """
+        Create a label for the aggregation periods.
+        Args:
+            observation_period (timedelta | None): Observation aggregation period. None if no observations and only forecasts.
+            forecast_period (timedelta | None): Forecast aggregation period. None if no forecasts and only observations.
+        Returns:
+            str: Label for both aggregation periods.
+        """
+        # Prepare the duration string
+        if observation_period is not None:
+            obs_string = f"obs_{parse_as_duration_string(observation_period)}"
+        else:
+            obs_string = None
+        if forecast_period is not None:
+            fore_string = f"fore_{parse_as_duration_string(forecast_period)}"
+        else:
+            fore_string = None
+
+        # Add the duration to the label
+        period_label = "_" + "_".join(filter(None, [obs_string, fore_string]))
+
+        return period_label
+
+    @staticmethod
+    def convert_expression_to_label(expression: Expr) -> str:
+        """
+        Transform the polar expression by replacing non-alphanumeric characters with underscores
+        and removing multiple consecutive underscores to get a var label for the aggregated variable.
+        Returns:
+            str: Label for the expression part.
+        """
+        # Keep alpha num only
+        expr_str = re.sub(r"[^a-zA-Z0-9]+", "_", str(expression))
+        # Remove col mentions and leading/trailing underscores
+        expr_str = expr_str.replace("col", "").strip("_")
+        # Remove multiple underscores
+        expr_str = re.sub(r"_+", "_", expr_str)
+
+        return expr_str
+
+    @staticmethod
     def get_var_label(
         expression: Expr,
         observation_period: timedelta | None = None,
@@ -220,27 +266,16 @@ class FeatureGenerator:
         Returns:
             str: Clean variable label.
         """
-        # Keep alpha num only
-        expr_str = re.sub(r"[^a-zA-Z0-9]+", "_", str(expression))
-        # Remove col mentions and leading/trailing underscores
-        expr_str = expr_str.replace("col", "").strip("_")
-        # Remove multiple underscores
-        expr_str = re.sub(r"_+", "_", expr_str)
-
-        # Prepare the duration string
-        if observation_period is not None:
-            obs_string = f"obs_{parse_as_duration_string(observation_period)}"
-        else:
-            obs_string = None
-        if forecast_period is not None:
-            fore_string = f"fore_{parse_as_duration_string(forecast_period)}"
-        else:
-            fore_string = None
+        # Prepare parts
+        expr_str = FeatureGenerator.convert_expression_to_label(expression)
+        periods_label = FeatureGenerator.label_periods(
+            observation_period, forecast_period
+        )
 
         # Add the duration to the label
-        cleaned = f"{expr_str}_{'_'.join(filter(None, [obs_string, fore_string]))}"
+        full_label = f"{expr_str}{periods_label}"
 
-        return cleaned
+        return full_label
 
     @staticmethod
     def _filter_apply(
@@ -250,6 +285,22 @@ class FeatureGenerator:
         expressions: list[Expr],
         focal_valid_datetime: datetime,
     ) -> LazyFrame:
+        """
+        Filter the all_records LazyFrame based on the observation and forecast periods
+        for a given focal_valid_datetime, then apply the aggregation expressions.
+        All transformations (expressions) of same period set are applied (lazily) to all_records after filtering.
+        Args:
+            all_records (LazyFrame): LazyFrame containing all records (observations and forecasts).
+            observation_period (timedelta | None): Observation aggregation period. None if no observations and only forecasts.
+            forecast_period (timedelta | None): Forecast aggregation period. None if no forecasts and only observations.
+            expressions (list[Expr]): List of Polars expressions to apply after filtering. Column names inside the expressions must match those in all_records.
+            focal_valid_datetime (datetime): Focal valid datetime for filtering.
+        Returns:
+            LazyFrame: LazyFrame after filtering and applying the aggregation expressions.
+        Raises:            ValueError: If both observation_period and forecast_period are None.
+            ValueError: If both observation_period and forecast_period are None.
+        """
+        # Control args
         # Deal with 0 length periods
         # Check that at least one period is not none
         if observation_period is None and forecast_period is None:
@@ -260,6 +311,9 @@ class FeatureGenerator:
             observation_period = timedelta(0)
         if forecast_period is None:
             forecast_period = timedelta(0)
+        # Check periods (raise error if not integer mutiples of source period)
+        Aggregation.get_steps_in_agg_periods(observation_period)
+        Aggregation.get_steps_in_agg_periods(forecast_period)
 
         # Filter
         # Preprare bounds (fixed by the focal valid datetime)
@@ -268,8 +322,14 @@ class FeatureGenerator:
             focal_valid_datetime - forecast_period - observation_period
         )
         forecast_lower_outside_bound = focal_valid_datetime - forecast_period
+        # Count expected steps
+        n_expected_steps_in_obs_period = Aggregation.get_steps_in_agg_periods(
+            observation_period
+        )
+        n_expected_steps_in_fore_period = Aggregation.get_steps_in_agg_periods(
+            forecast_period
+        )
         # Apply bounds
-        print("ok")
         plan_for_feature = (
             all_records.filter(
                 # In obs:
@@ -292,28 +352,56 @@ class FeatureGenerator:
                     & (col("valid_datetime") > forecast_lower_outside_bound)
                 )
             )
-            # Add the focal valid datetime and number of rows in the filtered set for control
-            .with_columns(
-                lit(focal_valid_datetime).alias("focal_valid_datetime"),
-                # Number of rows in the output
-                length().alias("n_rows_in_filtered"),
-            )
             .sort(["valid_datetime", "init_datetime"])
+            # Apply functions: Controls and aggregation expressions
             .select(
-                col("focal_valid_datetime").first().alias("focal_valid_datetime"),
-                col("n_rows_in_filtered").first().alias("n_rows_in_filtered"),
+                # Provide the focal time back
+                lit(focal_valid_datetime).alias("valid_datetime"),
+                # Controls: number of rows in each side
+                col("valid_datetime")
+                .filter(col("init_datetime").is_null())
+                .count()
+                .alias("n_rows_observation"),
+                col("valid_datetime")
+                .filter(col("init_datetime").is_not_null())
+                .count()
+                .alias("n_rows_forecast"),
+                # Identify the min and max dates in the aggregation of both sides
+                # observations
+                col("valid_datetime")
+                .filter(col("init_datetime").is_null())
+                .min()
+                .alias("valid_datetime_observations_min"),
+                col("valid_datetime")
+                .filter(col("init_datetime").is_null())
+                .max()
+                .alias("valid_datetime_observations_max"),
+                # forecasts
+                col("valid_datetime")
+                .filter(col("init_datetime").is_not_null())
+                .min()
+                .alias("valid_datetime_forecasts_min"),
+                col("valid_datetime")
+                .filter(col("init_datetime").is_not_null())
+                .max()
+                .alias("valid_datetime_forecasts_max"),
+                # Aggregation on the full period
+                (
+                    (col("init_datetime").is_null().sum())
+                    == n_expected_steps_in_obs_period
+                ).alias("valid_datetime_observations_steps"),
+                (
+                    (col("init_datetime").is_not_null().sum())
+                    == n_expected_steps_in_fore_period
+                ).alias("valid_datetime_forecasts_steps"),
+                # Aggregations
                 *[
-                    exp.alias(
-                        FeatureGenerator.get_var_label(
-                            exp, observation_period, forecast_period
-                        )
-                    )
+                    # Expressions with proper labels
+                    exp.alias(FeatureGenerator.convert_expression_to_label(exp))
                     for exp in expressions
                 ],
             )
         )
-
-        # Apply function HERE IF NEEDED
 
         return plan_for_feature
 
