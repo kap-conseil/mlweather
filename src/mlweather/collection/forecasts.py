@@ -31,6 +31,16 @@ class Forecasts(Records):
         # Child specific attributes can be added here if needed
         self.past_days_range = Forecasts.validate_past_day_range(past_days_range)
 
+    def __repr__(self) -> str:
+        return (
+            f"Forecasts of location {self.lat_lon} with {self.record_table.shape[0]:,} hourly entries.\n"
+            f"on forecast horizons of days {self.record_table['past_day'].unique().sort().to_list()}.\n"
+            f"Elevation: {self.elevation} m\n"
+            f"Units: {self.units}\n"
+            f"Record Table:\n"
+            f"{self.record_table}"
+        )
+
     @staticmethod
     def validate_past_day_range(past_days_range: tuple[int, int]) -> tuple[int, int]:
         """

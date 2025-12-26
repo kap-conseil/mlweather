@@ -41,14 +41,9 @@ class Records(ABC):
         self.units = units
         self.record_table = record_table
 
-    def __repr__(self) -> str:
-        return f"""
-        Records at {self.lat_lon} with {self.record_table.shape[0]} hourly entries.
-        Elevation: {self.elevation} m
-        Units: {self.units}
-        Record Table:
-        {self.record_table}
-        """
+    @abstractmethod
+    def __repr__(self):
+        pass
 
     @staticmethod
     def are_var_names_valid(variable_names: list[str]) -> bool:
