@@ -1,13 +1,21 @@
 from dataclasses import dataclass
-from polars import Expr, DataFrame, col, len as length, when, Series, Datetime
+from polars import (
+    Expr,
+    DataFrame,
+    LazyFrame,
+    col,
+    concat,
+    datetime_ranges,
+    len as length,
+    lit,
+    when,
+    Series,
+    Datetime,
+    selectors as cs,
+)
 from polars._utils.convert import parse_as_duration_string
 import re
-from functools import reduce
-
-from datetime import timedelta
-
-from mlweather.collection.forecasts import Forecasts
-from mlweather.collection.observations import Observations
+from datetime import datetime, timedelta
 
 
 class Aggregation:
@@ -24,6 +32,7 @@ class Aggregation:
     def __init__(
         self,
         expression: Expr,
+        *,
         observation_period: timedelta | None = None,
         forecast_period: timedelta | None = None,
     ) -> None:
@@ -34,9 +43,9 @@ class Aggregation:
     def __repr__(self) -> str:
         return (
             f"Aggregation(\n"
-            f"  expression={self.expression},\n"
-            f"  observation_period={self.observation_period},\n"
-            f"  forecast_period={self.forecast_period}\n"
+            f"    expression={self.expression},\n"
+            f"    observation_period={self.observation_period},\n"
+            f"    forecast_period={self.forecast_period}\n"
             f")"
         )
 
@@ -85,36 +94,6 @@ class Aggregation:
 
         return self.get_steps_in_agg_periods(self.forecast_period)
 
-    def get_var_label(self) -> str:
-        """
-        Transform the polar expression by replacing non-alphanumeric characters with underscores
-        and removing multiple consecutive underscores, then add duration
-        to get a var label for the aggregated variable.
-        Returns:
-            str: Clean variable label.
-        """
-        # Keep alpha num only
-        expr_str = re.sub(r"[^a-zA-Z0-9]+", "_", str(self.expression))
-        # Remove col mentions and leading/trailing underscores
-        expr_str = expr_str.replace("col", "").strip("_")
-        # Remove multiple underscores
-        expr_str = re.sub(r"_+", "_", expr_str)
-
-        # Prepare the duration string
-        if self.observation_period is not None:
-            obs_string = f"obs_{parse_as_duration_string(self.observation_period)}"
-        else:
-            obs_string = None
-        if self.forecast_period is not None:
-            fore_string = f"fore_{parse_as_duration_string(self.forecast_period)}"
-        else:
-            fore_string = None
-
-        # Add the duration to the label
-        cleaned = f"{expr_str}_{'_'.join(filter(None, [obs_string, fore_string]))}"
-
-        return cleaned
-
 
 class FeatureGenerator:
     """
@@ -126,6 +105,84 @@ class FeatureGenerator:
     def __init__(self, aggregations: list[Aggregation]) -> None:
         self.aggregations = aggregations
 
+    def __repr__(self) -> str:
+        # Display all aggregations
+        aggs_str = ",\n  ".join([repr(agg) for agg in self.aggregations])
+
+        return f"FeatureGenerator(\nAggregations:\n  {aggs_str}\n)"
+
+    @staticmethod
+    def _prepare_all_records(
+        obs: DataFrame | None, fore: DataFrame | None
+    ) -> LazyFrame:
+        # Replicate the forecast data to hourly frequency by self merging on the hourly spread dates
+        # Add hours to dates based on init_datetime
+        # Insert date ranges (hours within the day) withi the cells of a new column then explode
+        non_meteo_vars = [
+            "init_datetime",
+            "valid_datetime",
+            "past_day",
+            "init_datetime_raw",
+            "init_datetime_raw_end",
+        ]
+
+        # Lazify the dataframe and handle None cases
+        # First prevent that both obs and forecast are None at the same time
+        if obs is None and fore is None:
+            raise ValueError(
+                "Both observations and forecasts cannot be None. At least one of them should be provided."
+            )
+        # Obs side
+        if obs is None:
+            obs_side = DataFrame().lazy()
+        else:
+            # Add id to observations
+            obs_side = (
+                obs.lazy()
+                .sort("valid_datetime")
+                .with_row_index("id")
+                .with_columns("observation-" + col("id").cast(str).alias("id"))
+            )
+
+        # Forecast side: with hourly replication of the daily forecasts:
+        # daily forecasts (at 00:00) are carried forward over the day
+        if fore is None:
+            forecast_side = DataFrame().lazy()
+        else:
+            forecast_side = (
+                # Add id
+                fore.lazy()
+                .with_row_index("id")
+                .with_columns("forecast-" + col("id").cast(str).alias("id"))
+                # Gerenate hourly init_datetime from daily init_datetime using datetime ranges, then exploded vertically
+                # Replicate the  daily computeed forecast to intraday steps (hourly)
+                .rename({"init_datetime": "init_datetime_raw"})
+                # Generate datetime ranges for each init_datetime (24 hour with the daily init_datetime)
+                .with_columns(
+                    (col("init_datetime_raw") + timedelta(hours=23)).alias(
+                        "init_datetime_raw_end"
+                    )
+                )
+                .with_columns(
+                    datetime_ranges(
+                        "init_datetime_raw",
+                        "init_datetime_raw_end",
+                        interval=timedelta(hours=1),
+                    ).alias("init_datetime")
+                )
+                # From compact (nested) form to long form
+                .explode("init_datetime")
+                # Reorder to have non weather variables first
+                .select(*non_meteo_vars, cs.exclude(non_meteo_vars))
+                # Then sorted by valid and init datetime
+                .sort(["valid_datetime", "init_datetime"])
+            )
+
+        # Assemble both sides
+        all_records = concat([obs_side, forecast_side], how="diagonal")
+
+        return all_records
+
     def unique_periods_sets(self) -> set:
         periods = [
             (agg.observation_period, agg.forecast_period) for agg in self.aggregations
@@ -133,109 +190,235 @@ class FeatureGenerator:
 
         return set(periods)
 
-    def generate_features(
+    def get_same_period_aggregations(
         self,
-        *,
-        observations: Observations | None = None,
-        forecasts: Forecasts | None = None,
-    ):
+    ) -> list[list[Aggregation]]:
+        # Create collector of same periods groups
+        groups_for_aggs = []
+        # Iterate over all aggregations
+        for period_set in self.unique_periods_sets():
+            # Extract current aggregations for the period set
+            current_aggregations = [
+                op
+                for op in self.aggregations
+                if (op.observation_period, op.forecast_period) == period_set
+            ]
+            groups_for_aggs.append(current_aggregations)
+
+        return groups_for_aggs
+
+    @staticmethod
+    def get_var_label(
+        expression: Expr,
+        observation_period: timedelta | None = None,
+        forecast_period: timedelta | None = None,
+    ) -> str:
         """
-        Generate features based on the defined aggregations.
-        Args:
-            observations (Observations | None): Observations instance to aggregate.
-            forecasts (Forecasts | None): Forecasts instance to aggregate.
+        Transform the polar expression by replacing non-alphanumeric characters with underscores
+        and removing multiple consecutive underscores, then add duration
+        to get a var label for the aggregated variable.
         Returns:
-            DataFrame: DataFrame containing the aggregated features.
+            str: Clean variable label.
         """
-        if observations is None and forecasts is None:
-            raise ValueError(
-                "At least observations or forecasts must be provided in the generate function"
-            )
-        elif isinstance(observations, Observations) and forecasts is None:
-            # Perform all individual aggregations
-            # collect a dataframe by aggregation defined
-            aggregated_variables = []
-            # Iterate over all aggregations
-            for period_set in self.unique_periods_sets():
-                # Extract current aggregations for the period set
-                current_aggregations = [
-                    op
-                    for op in self.aggregations
-                    if (op.observation_period, op.forecast_period) == period_set
-                ]
-                # Prepare the expressions for the current period set
-                ops_in_period_set = [
-                    op.expression.alias(op.get_var_label())
-                    for op in current_aggregations
-                ]
-                new_col_names = [op.get_var_label() for op in current_aggregations]
+        # Keep alpha num only
+        expr_str = re.sub(r"[^a-zA-Z0-9]+", "_", str(expression))
+        # Remove col mentions and leading/trailing underscores
+        expr_str = expr_str.replace("col", "").strip("_")
+        # Remove multiple underscores
+        expr_str = re.sub(r"_+", "_", expr_str)
 
-                print(ops_in_period_set)
-                # for op in self.aggregations:
-                # Check type for the rolling operation
-                # Apply the expression, lazily until the end
-                current_agg_table = (
-                    # Rolling groups
-                    observations.record_table.lazy().rolling(
-                        index_column="valid_datetime",
-                        period=period_set[0],
-                        offset=None,
-                        closed="right",
-                        group_by="init_datetime",
-                    )
-                ).agg(
-                    # Compute the control for dates included in the aggregation
-                    col("valid_datetime")
-                    .min()
-                    .alias(
-                        "valid_datetime_min_"
-                        + f"obs_{parse_as_duration_string(period_set[0])}"
-                    ),
-                    col("valid_datetime")
-                    .max()
-                    .alias(
-                        "valid_datetime_max_"
-                        + f"obs_{parse_as_duration_string(period_set[0])}"
-                    ),
-                    # Length of agg period
-                    length().alias(
-                        "valid_datetime_length_"
-                        + f"obs_{parse_as_duration_string(period_set[0])}"
-                    ),
-                    # Finally apply the expression
-                    *ops_in_period_set,
-                )
-                # Replace incomplete aggregations with missing to make sure incomplete aggs are not kept for each period set aggregrations
-                current_agg_table = current_agg_table.with_columns(
-                    [
-                        when(
-                            col(
-                                f"valid_datetime_length_obs_{parse_as_duration_string(period_set[0])}"
-                            )
-                            == current_aggregations[0].get_step_in_obs_period()
-                        )
-                        .then(col(col_name))
-                        .otherwise(None)
-                        .alias(col_name)
-                        for col_name in new_col_names
-                    ]
-                ).collect()
-
-                # Store the individual aggregations before joining them
-                aggregated_variables.append(current_agg_table)
-                features = reduce(
-                    lambda left, right: left.join(
-                        right,
-                        on=["init_datetime", "valid_datetime"],
-                        how="inner",
-                        validate="1:1",
-                        nulls_equal=True,
-                    ),
-                    aggregated_variables,
-                )
-        elif observations is None and isinstance(forecasts, Forecasts):
-            pass
+        # Prepare the duration string
+        if observation_period is not None:
+            obs_string = f"obs_{parse_as_duration_string(observation_period)}"
         else:
-            raise TypeError("Both observations and forecast are not supported types")
+            obs_string = None
+        if forecast_period is not None:
+            fore_string = f"fore_{parse_as_duration_string(forecast_period)}"
+        else:
+            fore_string = None
 
-        return features
+        # Add the duration to the label
+        cleaned = f"{expr_str}_{'_'.join(filter(None, [obs_string, fore_string]))}"
+
+        return cleaned
+
+    @staticmethod
+    def _filter_apply(
+        all_records: LazyFrame,
+        observation_period: timedelta | None,
+        forecast_period: timedelta | None,
+        expressions: list[Expr],
+        focal_valid_datetime: datetime,
+    ) -> LazyFrame:
+        # Deal with 0 length periods
+        # Check that at least one period is not none
+        if observation_period is None and forecast_period is None:
+            raise ValueError(
+                "At least one of observation_period or forecast_period must be not None"
+            )
+        if observation_period is None:
+            observation_period = timedelta(0)
+        if forecast_period is None:
+            forecast_period = timedelta(0)
+
+        # Filter
+        # Preprare bounds (fixed by the focal valid datetime)
+        obs_upper_inside_bound = focal_valid_datetime - forecast_period
+        obs_lower_outside_bound = (
+            focal_valid_datetime - forecast_period - observation_period
+        )
+        forecast_lower_outside_bound = focal_valid_datetime - forecast_period
+        # Apply bounds
+        print("ok")
+        plan_for_feature = (
+            all_records.filter(
+                # In obs:
+                # from the valid_time - the forecast period (included),
+                # back to included to the observation period and forecast period (bound excluded)
+                (
+                    col("init_datetime").is_null()  # only for observations
+                    & (col("valid_datetime") <= obs_upper_inside_bound)
+                    & (col("valid_datetime") > obs_lower_outside_bound)
+                )
+                |  # OR to switch to forecast side
+                # In forecast:
+                # for the init_times that match perfectly the first valid time
+                # from the valid_time (included),
+                # back to included to the observation period period (bound excluded)
+                (
+                    col("init_datetime").is_not_null()  # only for forecasts
+                    & (col("init_datetime") == forecast_lower_outside_bound)
+                    & (col("valid_datetime") <= focal_valid_datetime)
+                    & (col("valid_datetime") > forecast_lower_outside_bound)
+                )
+            )
+            # Add the focal valid datetime and number of rows in the filtered set for control
+            .with_columns(
+                lit(focal_valid_datetime).alias("focal_valid_datetime"),
+                # Number of rows in the output
+                length().alias("n_rows_in_filtered"),
+            )
+            .sort(["valid_datetime", "init_datetime"])
+            .select(
+                col("focal_valid_datetime").first().alias("focal_valid_datetime"),
+                col("n_rows_in_filtered").first().alias("n_rows_in_filtered"),
+                *[
+                    exp.alias(
+                        FeatureGenerator.get_var_label(
+                            exp, observation_period, forecast_period
+                        )
+                    )
+                    for exp in expressions
+                ],
+            )
+        )
+
+        # Apply function HERE IF NEEDED
+
+        return plan_for_feature
+
+    # def generate_features(
+    #     self,
+    #     *,
+    #     observations: Observations | None = None,
+    #     forecasts: Forecasts | None = None,
+    # ):
+    #     """
+    #     Generate features based on the defined aggregations.
+    #     Args:
+    #         observations (Observations | None): Observations instance to aggregate.
+    #         forecasts (Forecasts | None): Forecasts instance to aggregate.
+    #     Returns:
+    #         DataFrame: DataFrame containing the aggregated features.
+    #     """
+    #     if observations is None and forecasts is None:
+    #         raise ValueError(
+    #             "At least observations or forecasts must be provided in the generate function"
+    #         )
+    #     elif isinstance(observations, Observations) and forecasts is None:
+    #         # Perform all individual aggregations
+    #         # collect a dataframe by aggregation defined
+    #         aggregated_variables = []
+    #         # Iterate over all aggregations
+    #         for period_set in self.unique_periods_sets():
+    #             # Extract current aggregations for the period set
+    #             current_aggregations = [
+    #                 op
+    #                 for op in self.aggregations
+    #                 if (op.observation_period, op.forecast_period) == period_set
+    #             ]
+    #             # Prepare the expressions for the current period set
+    #             ops_in_period_set = [
+    #                 op.expression.alias(op.get_var_label())
+    #                 for op in current_aggregations
+    #             ]
+    #             new_col_names = [op.get_var_label() for op in current_aggregations]
+
+    #             # for op in self.aggregations:
+    #             # Check type for the rolling operation
+    #             # Apply the expression, lazily until the end
+    #             current_agg_table = (
+    #                 # Rolling groups
+    #                 observations.record_table.lazy().rolling(
+    #                     index_column="valid_datetime",
+    #                     period=period_set[0],
+    #                     offset=None,
+    #                     closed="right",
+    #                     group_by="init_datetime",
+    #                 )
+    #             ).agg(
+    #                 # Compute the control for dates included in the aggregation
+    #                 col("valid_datetime")
+    #                 .min()
+    #                 .alias(
+    #                     "valid_datetime_min_"
+    #                     + f"obs_{parse_as_duration_string(period_set[0])}"
+    #                 ),
+    #                 col("valid_datetime")
+    #                 .max()
+    #                 .alias(
+    #                     "valid_datetime_max_"
+    #                     + f"obs_{parse_as_duration_string(period_set[0])}"
+    #                 ),
+    #                 # Length of agg period
+    #                 length().alias(
+    #                     "valid_datetime_length_"
+    #                     + f"obs_{parse_as_duration_string(period_set[0])}"
+    #                 ),
+    #                 # Finally apply the expression
+    #                 *ops_in_period_set,
+    #             )
+    #             # Replace incomplete aggregations with missing to make sure incomplete aggs are not kept for each period set aggregrations
+    #             current_agg_table = current_agg_table.with_columns(
+    #                 [
+    #                     when(
+    #                         col(
+    #                             f"valid_datetime_length_obs_{parse_as_duration_string(period_set[0])}"
+    #                         )
+    #                         == current_aggregations[0].get_step_in_obs_period()
+    #                     )
+    #                     .then(col(col_name))
+    #                     .otherwise(None)
+    #                     .alias(col_name)
+    #                     for col_name in new_col_names
+    #                 ]
+    #             ).collect()
+
+    #             # Store the individual aggregations before joining them
+    #             aggregated_variables.append(current_agg_table)
+    #             features = reduce(
+    #                 lambda left, right: left.join(
+    #                     right,
+    #                     on=["init_datetime", "valid_datetime"],
+    #                     how="inner",
+    #                     validate="1:1",
+    #                     nulls_equal=True,
+    #                 ),
+    #                 aggregated_variables,
+    #             )
+    #     elif observations is None and isinstance(forecasts, Forecasts):
+    #         pass
+    #     else:
+    #         raise TypeError("Both observations and forecast are not supported types")
+
+    #     return features
