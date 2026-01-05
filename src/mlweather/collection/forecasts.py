@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from functools import reduce
 import re
-from polars import DataFrame, Datetime, col, lit, selectors as cs
+from polars import DataFrame, col, selectors as cs
 from mlweather.collection.records import Records
 from mlweather.collection.utils import to_utc_safe
 
@@ -249,7 +249,6 @@ class Forecasts(Records):
         hourly_values = Records.reorder_columns(hourly_values).sort(
             "init_datetime", "valid_datetime"
         )
-        hourly_values.write_excel("debug_forecast_records.xlsx")
         # Check regular time grid within init_datetime
         Records.is_obs_regular_time(hourly_values)
 

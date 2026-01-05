@@ -103,7 +103,7 @@ class Records(ABC):
             )
             .filter(col("diff").is_not_null())
         )
-        record_table.write_excel("debug_obs_time_intervals.xlsx")
+
         diffs = record_table["diff"].value_counts()
 
         if diffs.shape[0] != 1:
@@ -121,7 +121,9 @@ class Records(ABC):
             DataFrame(resp_dict["hourly"])
             .rename({"time": "valid_datetime"})
             .with_columns(
-                col("valid_datetime").str.to_datetime(format="%Y-%m-%dT%H:%M")
+                col("valid_datetime").str.to_datetime(
+                    format="%Y-%m-%dT%H:%M", time_zone="UTC"
+                )
             )
             # Reorder columns to have valid_datetime first
             .select(

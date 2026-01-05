@@ -1,5 +1,5 @@
 from datetime import datetime
-from polars import DataFrame, Datetime, lit, selectors as cs
+from polars import DataFrame, Datetime, lit
 from mlweather.collection.records import Records
 from mlweather.collection.utils import to_utc_safe
 
@@ -105,7 +105,7 @@ class Observations(Records):
 
         # Add init datetime as a copy of valid_datetime beause they are Observations
         hourly_values = Observations.prepare_hourly_records(resp_dict).with_columns(
-            lit(None).cast(Datetime).alias("init_datetime")
+            lit(None).cast(Datetime("us", "UTC")).alias("init_datetime")
         )
         # Reorder and sort columns
         hourly_values = Records.reorder_columns(hourly_values).sort(
