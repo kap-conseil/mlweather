@@ -44,8 +44,8 @@ class Observations(Records):
         cls,
         lat_lon: tuple[float, float],
         variables_names: list[str],
-        start_date: datetime,
-        end_date: datetime,
+        start: datetime,
+        end: datetime,
         api_key: str | None = None,
         verbose: bool = False,
     ):
@@ -60,8 +60,8 @@ class Observations(Records):
             lat_lon (tuple[float, float]): Latitude and longitude coordinates as a tuple.
             variables_names (list[str]): List of weather measurement variable names to retrieve.
                 Must be from the ADMISSIBLE_VARIABLES list.
-            start_date (datetime): Start date for the data retrieval period. By default supposes UTC if no timezone provided.
-            end_date (datetime): End date for the data retrieval period. By default supposes UTC if no timezone provided.
+            start (datetime): Start date for the data retrieval period. By default supposes UTC if no timezone provided.
+            end (datetime): End date for the data retrieval period. By default supposes UTC if no timezone provided.
             api_key (str | None, optional): API key for commercial access. If None,
                 uses the free archive API. Defaults to None.
             verbose (bool, optional): If True, prints the query URL for debugging.
@@ -78,8 +78,8 @@ class Observations(Records):
         params = {
             "latitude": lat_lon[0],
             "longitude": lat_lon[1],
-            "start_date": to_utc_safe(start_date).strftime("%Y-%m-%d"),
-            "end_date": to_utc_safe(end_date).strftime("%Y-%m-%d"),
+            "start_date": to_utc_safe(start).strftime("%Y-%m-%d"),
+            "end_date": to_utc_safe(end).strftime("%Y-%m-%d"),
             "hourly": ",".join(variables_names),
             "timezone": "GMT",
         }
@@ -113,7 +113,7 @@ class Observations(Records):
         )
 
         # Check regular time grid within init_datetime
-        Records.is_obs_regular_time(hourly_values)
+        Records.is_regular_time(hourly_values)
 
         # Prepare the observations with the hourly table
         obs = cls(

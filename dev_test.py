@@ -41,7 +41,7 @@ fore = Forecasts.collect(
     selected_vars,
     start_dt,
     end_dt,
-    (0, 7),
+    (1, 7),
     api_key=os.getenv("OPENMETEO_API_KEY"),
 )
 

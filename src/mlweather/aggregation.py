@@ -126,7 +126,7 @@ class FeatureGenerator:
         non_meteo_vars = [
             "init_datetime",
             "valid_datetime",
-            "past_day",
+            "days_forecast_horizon",
             "init_datetime_raw",
             "init_datetime_raw_end",
         ]
@@ -515,13 +515,9 @@ class FeatureGenerator:
             # Collect all results for the current period set: One table (single rowed) per focal valid_datetime
             # This is the "best" optimization tradeoff found so far:
             # collect_all and bind them into a dataframe: does the job faster than a map / for loop outside the polars framework
-            print("here")
-            print([i.columns for i in collect_all(plans_for_features)])
-            print("here")
             collected_aggregations = concat(
                 collect_all(plans_for_features), how="vertical"
             )
-            print("here")
             # Rename the columns to proper feature labels
             collected_aggregations = collected_aggregations.rename(
                 {

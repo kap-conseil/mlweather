@@ -1,9 +1,8 @@
 from abc import ABC, abstractmethod
-from polars import DataFrame, col, int_range, len as pl_len, selectors as cs
+from polars import DataFrame, col, selectors as cs
 from requests import Request, Session
 
 from mlweather.collection.variables import ADMISSIBLE_VARIABLES
-
 
 # GENERIC CLASS FOR ALL WEATHER RECORDS ########################################
 # Used as base class for Observations and Forecasts to
@@ -81,7 +80,7 @@ class Records(ABC):
         return content
 
     @staticmethod
-    def is_obs_regular_time(record_table: DataFrame) -> None:
+    def is_regular_time(record_table: DataFrame) -> None:
         # All valid_datetimes are unique within each init_datetime
         if not (
             # For each init_datetime, make sure we have as many rows as unique values of valid_datetime
