@@ -35,7 +35,7 @@ class TestForecasts:
         fore = Forecasts.collect(
             lat_lon=(52.52, 13.41),
             variables_names=["temperature_2m", "precipitation"],
-            past_forecast_days_range=(0, 2),
+            forecast_horizon_days_range=(0, 2),
             start=datetime(2024, 2, 1, 0, 0, 0, tzinfo=timezone.utc),
             end=datetime(2024, 3, 1, 1, 0, 0, tzinfo=timezone.utc),
         )
@@ -44,7 +44,7 @@ class TestForecasts:
         fore_no_day0 = Forecasts.collect(
             lat_lon=(52.52, 13.41),
             variables_names=["temperature_2m", "precipitation"],
-            past_forecast_days_range=(1, 2),
+            forecast_horizon_days_range=(1, 2),
             start=datetime(2024, 2, 1, 0, 0, 0, tzinfo=timezone.utc),
             end=datetime(2024, 3, 1, 1, 0, 0, tzinfo=timezone.utc),
         )

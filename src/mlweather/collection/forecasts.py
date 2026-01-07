@@ -38,9 +38,9 @@ class Forecasts(Records):
         return (
             f"Forecasts of location {self.lat_lon} with {self.record_table.shape[0]:,} hourly entries.\n"
             f"for forecast horizons of days ranging from {self.forecast_horizon_days_range[0]} to {self.forecast_horizon_days_range[1]}.\n"
-            f"Elevation: {self.elevation} m\n"
-            f"Units: {self.units}\n"
-            f"Record Table:\n"
+            f"elevation: {self.elevation} m\n"
+            f"units: {self.units}\n"
+            f"record_table:\n"
             f"{self.record_table}"
         )
 
@@ -164,7 +164,7 @@ class Forecasts(Records):
         variables_names: list[str],
         start: datetime,
         end: datetime,
-        past_forecast_days_range: tuple[int, int],
+        forecast_horizon_days_range: tuple[int, int],
         api_key: str | None = None,
         verbose: bool = False,
     ):
@@ -180,7 +180,7 @@ class Forecasts(Records):
                 Must be from the ADMISSIBLE_VARIABLES list.
             start (datetime): Start date for the data retrieval period. By default supposes UTC if no timezone provided.
             end (datetime): End date for the data retrieval period. By default supposes UTC if no timezone provided.
-            past_forecast_days_range (tuple[int, int]): Tuple indicating the range of past forecast days to retrieve (start_day, end_day).
+            forecast_horizon_days_range (tuple[int, int]): Tuple indicating the range of past forecast days to retrieve (start_day, end_day).
             api_key (str | None, optional): API key for commercial access. If None,
                 uses the free previous runs API. Defaults to None.
             verbose (bool, optional): If True, prints the query URL for debugging.
@@ -193,7 +193,7 @@ class Forecasts(Records):
         # Check arguments
         cls.are_var_names_valid(variables_names)
         forecast_horizons_range = Forecasts.validate_forecast_horizon_days_range(
-            past_forecast_days_range
+            forecast_horizon_days_range
         )
 
         # Define the variable names to query for all vars and previous days (all the non day0 variables)

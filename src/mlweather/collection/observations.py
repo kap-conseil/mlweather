@@ -33,9 +33,9 @@ class Observations(Records):
     def __repr__(self) -> str:
         return (
             f"Observations of location {self.lat_lon} with {self.record_table.shape[0]:,} hourly entries.\n"
-            f"Elevation: {self.elevation} m\n"
-            f"Units: {self.units}\n"
-            f"Record Table:\n"
+            f"elevation: {self.elevation} m\n"
+            f"units: {self.units}\n"
+            f"record_table:\n"
             f"{self.record_table}"
         )
 

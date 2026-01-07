@@ -12,7 +12,6 @@ from polars import (
     lit,
     when,
     Series,
-    Datetime,
     selectors as cs,
 )
 from polars._utils.convert import parse_as_duration_string
@@ -23,13 +22,14 @@ from mlweather.collection.observations import Observations
 from mlweather.collection.forecasts import Forecasts
 
 
+# DEFINE THE TRANSFORMATIONS TO PERFORM ON THE WEATHER DATA ####################
 class Aggregation:
     """
     Class for defining a single aggregation operation of a given weather variable.
     It contains the polar expression to apply to the variable and the aggregation period.
     Aggregation period should be an integer multiple of the source data period (1 hour).
     Args:
-        operation (Expr): Polars Expression defining the aggregation operation. See [Polars Expressions](https://docs.pola.rs/user-guide/concepts/expressions-and-contexts/).
+        expression (Expr): Polars Expression defining the aggregation operation. See [Polars Expressions](https://docs.pola.rs/user-guide/concepts/expressions-and-contexts/).
         observation_period (timedelta | None): Aggregation period for observations as a timedelta object.
         forecast_period (timedelta | None): Aggregation period for forecasts as a timedelta object.
     """
@@ -65,12 +65,18 @@ class Aggregation:
         Raises:
             ValueError: If the aggregation period is not an integer multiple of the source data period.
         """
+        # Check that the timedalta is > 0
+        if period < timedelta(0):
+            raise ValueError(
+                f"The aggregation period {period} must be equal or greater than zero"
+            )
         # Assuming source data period is 1 hour
         source_period = timedelta(hours=1)
         if period % source_period != timedelta(0):
             raise ValueError(
                 f"The aggregation period {period} is not an integer multiple of the source data period {source_period}"
             )
+
         return int(period / source_period)
 
     def get_step_in_obs_period(self) -> int:
@@ -108,6 +114,14 @@ class FeatureGenerator:
     """
 
     def __init__(self, aggregations: list[Aggregation]) -> None:
+        if len(aggregations) == 0:
+            raise ValueError("aggregations cannot be an empty list")
+        # All itm of list[Aggregation] should be Aggregation instances
+        for agg in aggregations:
+            if not isinstance(agg, Aggregation):
+                raise TypeError(
+                    "All items in aggregations must be instances of Aggregation"
+                )
         self.aggregations = aggregations
 
     def __repr__(self) -> str:
@@ -372,8 +386,10 @@ class FeatureGenerator:
         if forecast_period is None:
             forecast_period = timedelta(0)
         # Check periods (raise error if not integer mutiples of source period)
-        Aggregation.get_steps_in_agg_periods(observation_period)
-        Aggregation.get_steps_in_agg_periods(forecast_period)
+        if not ((forecast_period + observation_period) > timedelta(0)):
+            raise ValueError(
+                "At least one of observation_period or forecast_period must be greater than zero"
+            )
 
         # Filter
         # Preprare bounds (fixed by the focal valid datetime)
@@ -533,7 +549,9 @@ class FeatureGenerator:
             all_aggregations.append(collected_aggregations)
 
         # Join all the aggregations on valid_datetime (only), recursively
-        return reduce(
+        features: DataFrame = reduce(
             lambda left, right: left.join(right, on="valid_datetime", validate="1:1"),
             all_aggregations,
         )
+
+        return features.sort("valid_datetime")
