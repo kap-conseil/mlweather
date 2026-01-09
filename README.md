@@ -36,7 +36,7 @@ This package aims to collect and prepare complex meteorological features ready f
 
 The packages main roles are:
 
--   **Collecting weather records** for past meteorological and forecasts for any location on Earth based on hourly measures for a large set of meteorological variables with profond history. The data is sourced from the high quality [Open-Meteo](https://open-meteo.com/). Forecast are both current forecast (to predict) and past forecast to train you model. Then you can train you models on the data of the same nature: you train your model on forecast data because you will predict on forecast data.
+-   **Collecting weather records** for past meteorological and forecasts for any location on Earth based on hourly measures for a large set of meteorological variables with profond history. The data is sourced from the high quality [Open-Meteo](https://open-meteo.com/). Forecast are both current forecast (to predict) and past forecast to train you model. Then you can train you models on the data of the same nature: you train your model on forecast data because you will predict on forecast data. It gives access to both the non-commercial access and commercial licenses of Open-Meteo. Please go to [Open-Meteo Pricing](https://open-meteo.com/en/pricing) for the conditions of use.
 
 -   **Aggregate forecasts, observations** or a mixture (e.g. X days of observations followed by Y days of forecasts) using **any function** to have aggregation (e.g. sum, mean, min,...for a given period) over a chosen period for every hour. It allows to combine **observations and forecasts** to have aggregation for periods for observations (e.g. X days) followed by forecasts (e.g. Y days). This approach provides features that exploit the last forecasts and assemble them to prior observations. It provides the average of temperatures mixing the available temperature forecasts and with the preceding observed temperature. You can have aggregations of observations and forecasts for custom meteorological ML features.
 
@@ -104,6 +104,7 @@ The following variables are available via `mlweather` (more [info](https://open-
 ### `Observations` : collect historical weather observations for a given location and period.
       
 `Observations` are sets of weather records collected for a given location (latitude, longitude) over a given period (start date, end date). They contain historical weather observations (not forecasts) sourced from the Open-Meteo API, at an hourly frequency.
+By default the non-commercial access of Open-Meteo is used. Please refer to [Open-Meteo pricing](https://open-meteo.com/en/pricing) for the conditions of use. Just provide a key if you have a commercial license.
 
 ```python
 from datetime import datetime, timezone, timedelta
@@ -114,6 +115,7 @@ observations = Observations.collect(
     variables_names=["precipitation", "temperature_2m"],         # variables to collect 
     start=datetime(2024, 5, 1, tzinfo=timezone.utc),  # start date for collection
     end=datetime(2024, 7, 31, tzinfo=timezone.utc),  # end date for collection
+    # api_key="your_open_meteo_api_key"  # optional: your Open-Meteo API key for commercial access
 )
 ```
 The resulting `observations` object contains metadata (elevation, units) and a Polars DataFrame (`record_table`) with the collected weather records.
@@ -156,10 +158,12 @@ forecasts = Forecasts.collect(
     variables_names=["precipitation", "temperature_2m"],         # variables to collect 
     start=datetime(2024, 5, 1, tzinfo=timezone.utc),  # start date for collection
     end=datetime(2024, 7, 31, tzinfo=timezone.utc),  # end date for collection
+    # api_key="your_open_meteo_api_key"  # optional: your Open-Meteo API key for commercial access
 )
 ```
 
 The resulting `Forecasts` object contains metadata (elevation, units) and a Polars DataFrame (`record_table`) with the collected weather records.
+By default the non-commercial access of Open-Meteo is used. Please refer to [Open-Meteo pricing](https://open-meteo.com/en/pricing) for the conditions of use. Just provide a key if you have a commercial license.
 Weather records include `init_datetime` (timestamp of the forecasting run), `valid_datetime` (time of the observation), and the requested variables.
 
 Past forecast (particularly uselfull to train models) are collected for different forecast horizons: from 0 days ahead forecast (intraday forecast) to 7 days ahead forecast (7 days forecast) in [Open-Meteo](https://open-meteo.com/) API.
@@ -294,104 +298,4 @@ shape: (9, 4)
  │ 2024-06-09 00:00:00    ┆ 12.2                   ┆ 0.2                    ┆ 12.5                  │
  │ UTC                    ┆                        ┆                        ┆                       │
  └────────────────────────┴────────────────────────┴────────────────────────┴───────────────────────┘
-```
-
-
-
-
-
-
-## Use
-
-``` python
-from datetime import datetime, timezone, timedelta
-from polars import col
-from mlweather.collection import Observations
-from mlweather.aggregation import AggConfig, aggregate
-
-# Collect weather data
-obs = Observations.get_obs(
-    (52.52, 13.41),  # Berlin (lat, lon)
-    ["precipitation", "temperature_2m"],
-    datetime(2023, 1, 1, tzinfo=timezone.utc),
-    datetime(2023, 12, 31, tzinfo=timezone.utc),
-)
-
-# Configure aggregations
-agg_config = [
-    AggConfig(col("precipitation").sum(), timedelta(days=1)),
-    AggConfig(col("temperature_2m").mean(), timedelta(days=7)),
-]
-
-# Generate ML features
-features = aggregate(obs.values, agg_config)
-```
-
-## API Reference
-
-### Core Classes
-
-#### `Observations.get_obs()`
-
-Retrieve weather observations from Open-Meteo API.
-
-**Parameters:** - `location` (tuple): Coordinates as (latitude, longitude) - `variables` (list\[str\]): Weather variables to collect - `start_date` (datetime): Start date (UTC timezone) - `end_date` (datetime): End date (UTC timezone) - `api_key` (str, optional): Open-Meteo API key - `verbose` (bool): Enable detailed logging
-
-**Returns:** `Observations` object with `.values` DataFrame
-
-#### `AggConfig`
-
-Configuration for temporal aggregations.
-
-**Parameters:** - `operation` (polars.Expr): Aggregation operation - `period` (timedelta): Rolling window period
-
-#### `aggregate()`
-
-Apply temporal aggregations to weather data.
-
-**Parameters:** - `obs_values` (DataFrame): Weather observations - `agg_config` (list\[AggConfig\]): Aggregation configurations
-
-**Returns:** `DataFrame` with aggregated features
-
-### Supported Variables (so far)
-
-| Variable               | Description       | Unit |
-|------------------------|-------------------|------|
-| `precipitation`        | Precipitation sum | mm   |
-| `temperature_2m`       | Temperature at 2m | °C   |
-| `wind_speed_10m`       | Wind speed at 10m | m/s  |
-| `relative_humidity_2m` | Relative humidity | \%   |
-| `surface_pressure`     | Surface pressure  | hPa  |
-
-## Configuration
-
-Set your Open-Meteo API key:
-
-``` bash
-export OPENMETEO_API_KEY="your_api_key"
-```
-
-Or use a `.env` file:
-
-```         
-OPENMETEO_API_KEY=your_api_key_here
-```
-
-## Performance
-
--   Built on Polars for high-performance data processing
--   Efficient memory usage for large datasets
--   Optimized rolling window calculations
-
-```mermaid
-gantt
-    title Hour-Based Tasks with Day Axis
-    dateFormat  YYYY-MM-DD HH:mm
-    axisFormat  %Y-%m-%d %Hh
-
-    section Row 1
-    Task A :a1, 2026-01-08 09:00, 3h
-
-    section Row 2
-    Task B :b1, 2026-01-08 10:00, 2h
 ```
