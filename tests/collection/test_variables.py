@@ -1,4 +1,5 @@
 from mlweather.collection.variables import Variable
+import pytest
 
 
 class TestVariable:
@@ -7,6 +8,7 @@ class TestVariable:
     def test_variable_init(self):
         """Test Variable initialization with valid parameters."""
         var = Variable("test_var", "mm", float, "Instant")
+        assert isinstance(var, Variable)
         assert var.name == "test_var"
         assert var.unit == "mm"
         assert isinstance(var.value_type, type)
@@ -33,3 +35,8 @@ class TestVariable:
         for unit, expected in test_cases:
             var = Variable("test", unit, float, "Instant")
             assert var.unit == expected
+
+    def test_init_for_invalid_name(self):
+        """Test wrong weather variable name raises ValueError."""
+        with pytest.raises(ValueError):
+            Variable.init_from_name("Xemperature_2m")

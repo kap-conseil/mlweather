@@ -15,7 +15,7 @@ class Forecasts(Records):
         lat_lon (tuple): Latitude and longitude coordinates as (float, float).
         elevation (float): Elevation in meters.
         units (dict): Dictionary mapping measurement names to their units.
-        forecast_horizon_days_range (tuple[int, int]): Tuple indicating the range of horizons of forecast. First value of tuple given the smallest desired horizon. 0 is the min. The second value give the largest desired horizon (common max is 7, on Open-meteo). For instance (0, 3) means the variables are expected for forecast at 0 day ahead, 1 day ahead, 2 days ahead, and 3 days ahead.
+        forecast_horizon_days_max (int): Maximum number of past days of forecast horizon to retrieve. Forecast collection start from current day forecast (horizon = 0 day) to forecast with horizon up to forecast_horizon_days_max (included).
         records (DataFrame): Polars DataFrame containing the weather records.
     """
 
@@ -24,20 +24,20 @@ class Forecasts(Records):
         lat_lon: tuple[float, float],
         elevation: float,
         units: dict[str, str],
-        forecast_horizon_days_range: tuple[int, int],
+        forecast_horizon_days_max: int,
         record_table: DataFrame,
     ) -> None:
         # First construct as parent
         super().__init__(lat_lon, elevation, units, record_table)
         # Child specific attributes can be added here if needed
-        self.forecast_horizon_days_range = (
-            Forecasts.validate_forecast_horizon_days_range(forecast_horizon_days_range)
+        self.forecast_horizon_days_max = Forecasts.validate_forecast_horizon_days_max(
+            forecast_horizon_days_max
         )
 
     def __repr__(self) -> str:
         return (
             f"Forecasts of location {self.lat_lon} with {self.record_table.shape[0]:,} hourly entries.\n"
-            f"for forecast horizons of days ranging from {self.forecast_horizon_days_range[0]} to {self.forecast_horizon_days_range[1]}.\n"
+            f"for forecast horizons of days ranging from 0 to {self.forecast_horizon_days_max}.\n"
             f"elevation: {self.elevation} m\n"
             f"units: {self.units}\n"
             f"record_table:\n"
@@ -45,31 +45,27 @@ class Forecasts(Records):
         )
 
     @staticmethod
-    def validate_forecast_horizon_days_range(
-        forecast_horizon_days_range: tuple[int, int],
-    ) -> tuple[int, int]:
+    def validate_forecast_horizon_days_max(
+        forecast_horizon_days_max: int,
+    ) -> int:
         """
-        Validate the past days range for forecasts.
+        Validate the past days max for forecasts.
         Args:
-            forecast_horizon_days_range (tuple[int, int]): Tuple indicating the range of past forecast days (start_day, end_day). The common max for end_day is 7.
+            forecast_horizon_days_max (int): Maximum number of past forecast days to retrieve. Forecast collection start from current day forecast (horizon = 0 day) to forecast with horizon up to forecast_horizon_days_max (included).
         Returns:
-            tuple[int, int]: The validated past days range.
+            int: The validated past days max.
         Raises:
-            ValueError: If the forecast_horizon_days_range is not a tuple of two non-negative integers
-                with end_day >= start_day.
+            ValueError: If the forecast_horizon_days_max is not a non-negative integer.
         """
         if (
-            not isinstance(forecast_horizon_days_range, tuple)
-            or len(forecast_horizon_days_range) != 2
-            or not all(isinstance(day, int) for day in forecast_horizon_days_range)
-            or forecast_horizon_days_range[0] < 0
-            or forecast_horizon_days_range[1] < forecast_horizon_days_range[0]
+            not isinstance(forecast_horizon_days_max, int)
+            or forecast_horizon_days_max < 0
         ):
             raise ValueError(
-                "forecast_horizon_days_range must be a tuple of two non-negative integers (start_day, end_day) with end_day >= start_day."
+                "forecast_horizon_days_max must be a non-negative integer."
             )
 
-        return forecast_horizon_days_range
+        return forecast_horizon_days_max
 
     @staticmethod
     def rename_day0_columns(
@@ -164,7 +160,7 @@ class Forecasts(Records):
         variables_names: list[str],
         start: datetime,
         end: datetime,
-        forecast_horizon_days_range: tuple[int, int],
+        forecast_horizon_days_max: int,
         api_key: str | None = None,
         verbose: bool = False,
     ):
@@ -180,7 +176,7 @@ class Forecasts(Records):
                 Must be from the ADMISSIBLE_VARIABLES list.
             start (datetime): Start date for the data retrieval period. By default supposes UTC if no timezone provided.
             end (datetime): End date for the data retrieval period. By default supposes UTC if no timezone provided.
-            forecast_horizon_days_range (tuple[int, int]): Tuple indicating the range of past forecast days to retrieve (start_day, end_day).
+            forecast_horizon_days_max (int): Maximum number of past forecast days to retrieve. Forecast collection start from current day forecast (horizon = 0 day) to forecast with horizon up to forecast_horizon_days_max (inclusive).
             api_key (str | None, optional): API key for commercial access. If None,
                 uses the free previous runs API. Defaults to None.
             verbose (bool, optional): If True, prints the query URL for debugging.
@@ -192,8 +188,9 @@ class Forecasts(Records):
         """
         # Check arguments
         cls.are_var_names_valid(variables_names)
-        forecast_horizons_range = Forecasts.validate_forecast_horizon_days_range(
-            forecast_horizon_days_range
+        forecast_horizons_range = (
+            0,
+            Forecasts.validate_forecast_horizon_days_max(forecast_horizon_days_max),
         )
 
         # Define the variable names to query for all vars and previous days (all the non day0 variables)
@@ -275,6 +272,6 @@ class Forecasts(Records):
             (resp_dict["latitude"], resp_dict["longitude"]),
             resp_dict["elevation"],
             units,
-            forecast_horizons_range,
+            forecast_horizon_days_max,
             hourly_values,
         )

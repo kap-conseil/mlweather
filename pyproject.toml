@@ -1,7 +1,7 @@
 [project]
 name = "mlweather"
-version = "0.1.4"
-description = "A package to collect and prepare weather data for ml jobs - based on the Open-Meteo weather source"
+version = "0.2.0"
+description = "A package to collect and prepare weather data easily, massively and at blazzing speed for ml jobs - based on the Open-Meteo weather source"
 readme = "README.md"
 authors = [
     { name = "Julien Gooris", email = "jgooris@kap.bzh" }
@@ -12,7 +12,6 @@ dependencies = [
     "pytest>=8.4.0",
     "pytest-cov>=6.1.1",
     "requests>=2.32.3",
-    "requests-cache>=1.2.1",
 ]
 
 [build-system]
@@ -23,7 +22,6 @@ build-backend = "hatchling.build"
 dev = [
     "ipykernel>=6.29.5",
     "mypy>=1.19.1",
-    "pandas>=2.3.3",
     "pyarrow>=22.0.0",
     "pytest>=8.4.0",
     "python-dotenv>=1.1.0",

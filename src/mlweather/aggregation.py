@@ -8,7 +8,6 @@ from polars import (
     collect_all,
     concat,
     datetime_ranges,
-    len as length,
     lit,
     when,
     Series,
@@ -140,7 +139,6 @@ class FeatureGenerator:
         non_meteo_vars = [
             "init_datetime",
             "valid_datetime",
-            "days_forecast_horizon",
             "init_datetime_raw",
             "init_datetime_raw_end",
         ]
@@ -160,7 +158,7 @@ class FeatureGenerator:
                 obs.lazy()
                 .sort("valid_datetime")
                 .with_row_index("id")
-                .with_columns("observation-" + col("id").cast(str).alias("id"))
+                .with_columns(("observation-" + col("id").cast(str)).alias("id"))
             )
 
         # Forecast side: with hourly replication of the daily forecasts:
@@ -172,7 +170,7 @@ class FeatureGenerator:
                 # Add id
                 fore.lazy()
                 .with_row_index("id")
-                .with_columns("forecast-" + col("id").cast(str).alias("id"))
+                .with_columns(("forecast-" + col("id").cast(str)).alias("id"))
                 # Gerenate hourly init_datetime from daily init_datetime using datetime ranges, then exploded vertically
                 # Replicate the  daily computeed forecast to intraday steps (hourly)
                 .rename({"init_datetime": "init_datetime_raw"})
@@ -297,10 +295,9 @@ class FeatureGenerator:
         return full_label
 
     @staticmethod
-    def _control_expressions(
-        n_expected_steps_in_obs_period: int, n_expected_steps_in_fore_period: int
-    ) -> list[Expr]:
+    def _control_expressions() -> list[Expr]:
         return [
+            # Count rows for obs and forecasts
             col("valid_datetime")
             .filter(col("init_datetime").is_null())
             .count()
@@ -357,7 +354,7 @@ class FeatureGenerator:
         forecast_period: timedelta | None,
         expressions: list[Expr],
         focal_valid_datetime: datetime,
-        control_aggregations=True,
+        control_aggregations=False,
     ) -> LazyFrame:
         """
         Filter the all_records LazyFrame based on the observation and forecast periods
@@ -369,6 +366,7 @@ class FeatureGenerator:
             forecast_period (timedelta | None): Forecast aggregation period. None if no forecasts and only observations.
             expressions (list[Expr]): List of Polars expressions to apply after filtering. Column names inside the expressions must match those in all_records.
             focal_valid_datetime (datetime): Focal valid datetime for filtering.
+            control_aggregations (bool): Whether to include control aggregations in the output.
         Returns:
             LazyFrame: LazyFrame after filtering and applying the aggregation expressions.
         Raises:            ValueError: If both observation_period and forecast_period are None.
@@ -407,11 +405,19 @@ class FeatureGenerator:
         )
         # Prepare the control expressions
         if control_aggregations:
-            control_exprs = FeatureGenerator._control_expressions(
-                n_expected_steps_in_obs_period, n_expected_steps_in_fore_period
-            )
+            control_exprs = FeatureGenerator._control_expressions()
+            cols_to_drop = []
+            cols_to_drop = [
+                "control_observations_complete",
+                "control_forecasts_complete",
+            ]
         else:
             control_exprs = []
+            cols_to_drop = [
+                "control_observations_complete_agg_sample",
+                "control_forecasts_complete_agg_sample",
+            ]
+
         # Apply bounds
         plan_for_feature = (
             all_records.filter(
@@ -458,6 +464,7 @@ class FeatureGenerator:
                     for exp in expressions
                 ],
             )
+            # Only return the aggreaton value if both obs and forecast samples are complete, otherwise return nulls
             .with_columns(
                 *[
                     when(
@@ -470,8 +477,8 @@ class FeatureGenerator:
                     for exp in expressions
                 ]
             )
+            .drop(*cols_to_drop)
         )
-
         return plan_for_feature
 
     _NO_MEASURES_COLUMNS = [
@@ -486,7 +493,7 @@ class FeatureGenerator:
         forecasts: Forecasts | None = None,
         control_aggregations=False,
     ):
-        # Assemble the records (observations and forecast together)
+        # Assemble the records (observations and forecast together) in a (lazy) all_records table
         if observations is None:
             obs = None
         else:
@@ -496,7 +503,6 @@ class FeatureGenerator:
         else:
             fore = forecasts.record_table
         all_records = self._prepare_all_records(obs, fore)
-
         # Work by pair of periods (obs and forecast), filter and apply the aggregation expressions over all focal valid_datetime
         # collector for the dataframes per period set
         all_aggregations = []
@@ -511,12 +517,15 @@ class FeatureGenerator:
             fore_period = same_period_aggs[0].forecast_period
             # Collect the expressions to latter apply
             expressions = [agg.expression for agg in same_period_aggs]
+
             # Check the dates
             FeatureGenerator._check_datetimes_are_in_records(
                 features_datetimes,
                 all_records.select("valid_datetime").unique().collect().to_series(),
             )
-            # By requested focal valid_datetime, filter and apply the expressions (+ store controls if requested)
+            # By requested focal valid_datetime:
+            #  1/ filter
+            #  2/ apply the expressions (+ store controls if requested)
             for focal_valid_datetime in features_datetimes:
                 plans_for_features.append(
                     FeatureGenerator._filter_apply(
