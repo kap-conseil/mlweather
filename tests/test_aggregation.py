@@ -1,8 +1,7 @@
-from datetime import timezone
+from datetime import timezone, datetime, timedelta
 import os
 import pytest
 from polars import arange, col, Expr, lit, when
-from requests_cache import datetime, timedelta
 
 from mlweather.collection.observations import Observations
 from mlweather.collection.forecasts import Forecasts
