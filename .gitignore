@@ -13,3 +13,4 @@ wheels/
 
 # Dev files
 dev_playground.py
+*.sqlite

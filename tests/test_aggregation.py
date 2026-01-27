@@ -77,7 +77,7 @@ class TestFeatureGenerator:
             start_dt,
             end_dt,
             api_key=api_key,
-            verbose=False,
+            cache_enabled=False,  # Disable cache for testing
         )
         fore = Forecasts.collect(
             loc,
@@ -86,6 +86,7 @@ class TestFeatureGenerator:
             end_dt,
             7,
             api_key=api_key,
+            cache_enabled=False,  # Disable cache for testing
         )
 
         # Check that they have the same valid_datetimes

@@ -38,6 +38,55 @@ class TestForecasts:
             forecast_horizon_days_max=2,
             start=datetime(2024, 2, 1, 0, 0, 0, tzinfo=timezone.utc),
             end=datetime(2024, 3, 1, 1, 0, 0, tzinfo=timezone.utc),
+            cache_enabled=False,  # Disable cache for testing
+            query_by_period_slices=False,
+        )
+
+        # Valid the type
+        assert isinstance(fore, Forecasts)
+        # Check columns presence
+        expected_columns = [
+            "valid_datetime",
+            "init_datetime",
+            # "days_forecast_horizon",
+            "temperature_2m",
+            "precipitation",
+        ]
+        for col_name in expected_columns:
+            assert col_name in fore.record_table.columns
+        # Control that datetimes are UTC or None for observations
+        assert fore.record_table["valid_datetime"][0].tzinfo == ZoneInfo("UTC")
+        assert fore.record_table["init_datetime"][0].tzinfo == ZoneInfo("UTC")
+        # Check that variables are floats
+        assert isinstance(fore.record_table["temperature_2m"].dtype, Float64)
+        assert isinstance(fore.record_table["precipitation"].dtype, Float64)
+        # Check that 3 records per valid_datetime are present for day 0,1,2
+        count_per_valid_dt = (
+            (fore.record_table.group_by("valid_datetime").len())["len"]
+            .unique()
+            .to_list()
+        )
+        assert count_per_valid_dt == [3]
+        # Check if regular time grid given the valid_datetime (do not raise an error)
+        Forecasts.is_regular_time(fore.record_table)
+
+        # Check that error is raised if time grid is not regular
+        with pytest.raises(ValueError):
+            Forecasts.is_regular_time(
+                fore.record_table.filter(arange(0, fore.record_table.height) != 2)
+            )
+
+    def test_collect_with_slicing(self):
+        # Collect observations for a given location and time range
+        fore = Forecasts.collect(
+            lat_lon=(52.52, 13.41),
+            variables_names=["temperature_2m", "precipitation"],
+            forecast_horizon_days_max=2,
+            start=datetime(2024, 2, 1, 0, 0, 0, tzinfo=timezone.utc),
+            end=datetime(2024, 3, 1, 1, 0, 0, tzinfo=timezone.utc),
+            cache_enabled=False,  # Disable cache for testing
+            query_by_period_slices=True,
+            period_slice_days=7,
         )
 
         # Valid the type

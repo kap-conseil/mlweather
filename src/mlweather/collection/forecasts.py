@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from functools import reduce
 import re
-from polars import DataFrame, col, selectors as cs
+from polars import DataFrame, col, concat, selectors as cs
 from mlweather.collection.records import Records
 from mlweather.collection.utils import to_utc_safe
 
@@ -153,6 +153,28 @@ class Forecasts(Records):
 
         return hourly_values
 
+    @staticmethod
+    def bind_forecasts(forecasts_slices: list["Forecasts"]) -> "Forecasts":
+        # Combine all slices into a single record_table
+        combined_record_table = concat(
+            [forecast_slice.record_table for forecast_slice in forecasts_slices],
+            how="vertical",
+        ).sort(["init_datetime", "valid_datetime"])
+
+        # Create a new Forecasts instance with the combined data
+        combined_forecasts = Forecasts(
+            lat_lon=forecasts_slices[0].lat_lon,
+            elevation=forecasts_slices[0].elevation,
+            units=forecasts_slices[0].units,
+            forecast_horizon_days_max=forecasts_slices[0].forecast_horizon_days_max,
+            record_table=combined_record_table,
+        )
+
+        # Check regular time grid within init_datetime
+        Records.is_regular_time(combined_record_table)
+
+        return combined_forecasts
+
     @classmethod
     def collect(
         cls,
@@ -162,7 +184,12 @@ class Forecasts(Records):
         end: datetime,
         forecast_horizon_days_max: int,
         api_key: str | None = None,
-        verbose: bool = False,
+        *,
+        cache_enabled: bool = True,
+        cache_expire_after: int = 86400 * 8,
+        cache_sqlite_filename: str = "api_cache.sqlite",
+        query_by_period_slices: bool = False,
+        period_slice_days: int = 31 * 3,
     ):
         """
         Retrieve weather forecasts from Open-Meteo API (hourly data) for a specified location and a time period,
@@ -179,21 +206,34 @@ class Forecasts(Records):
             forecast_horizon_days_max (int): Maximum number of past forecast days to retrieve. Forecast collection start from current day forecast (horizon = 0 day) to forecast with horizon up to forecast_horizon_days_max (inclusive).
             api_key (str | None, optional): API key for commercial access. If None,
                 uses the free previous runs API. Defaults to None.
-            verbose (bool, optional): If True, prints the query URL for debugging.
+            cache_enabled (bool, optional): If True, enables caching of API responses to
+                reduce redundant network calls. Defaults to True.
+            cache_expire_after (int, optional): Time in seconds after which the cached
+                responses expire. Defaults to 86400 * 8 (8 days).
+            cache_sqlite_filename (str, optional): Filename for the SQLite cache database.
+                Defaults to "api_cache.sqlite".
+            query_by_period_slices (bool, optional): If True, queries data in slices of periods.
                 Defaults to False.
+            period_slice_days (int, optional): Number of days for each period slice when
+                querying by period slices. Defaults to 31 * 3 (approximately 3 months).
         Returns:
             cls: An instance of the class containing the retrieved weather forecasts
             with location coordinates, elevation, measurement units, hourly values,
             and past days range information.
         """
         # Check arguments
+        # control the variable names
         cls.are_var_names_valid(variables_names)
+
+        # control the length of period_slice_days
+        if period_slice_days < 7:
+            raise ValueError("period_slice_days must be at least 7 days.")
+
+        # Define the variable names to query for all vars and previous days (all the non day0 variables)
         forecast_horizons_range = (
             0,
             Forecasts.validate_forecast_horizon_days_max(forecast_horizon_days_max),
         )
-
-        # Define the variable names to query for all vars and previous days (all the non day0 variables)
         # To query the open meteo API for forecasts at variable horizons, you must pass the weather variable with a suffix "_previous_dayX", including for day0
         all_measures_with_horizons = [
             f"{m}_previous_day{pd}"
@@ -201,77 +241,104 @@ class Forecasts(Records):
             for pd in range(forecast_horizons_range[0], forecast_horizons_range[1] + 1)
         ]
 
-        # Build query params
-        params = {
-            "latitude": lat_lon[0],
-            "longitude": lat_lon[1],
-            "start_date": to_utc_safe(start).strftime("%Y-%m-%d"),
-            "end_date": to_utc_safe(end).strftime("%Y-%m-%d"),
-            "hourly": ",".join(all_measures_with_horizons),
-            "timezone": "GMT",
-        }
-        # If an API key is provided, add it to the request parameters
-        if api_key is not None:
-            params["apikey"] = api_key
+        # Prepare time slices: cut into periods if requested
+        if query_by_period_slices:
+            # Extrem points of the full period
+            full_period_start = to_utc_safe(start)
+            full_period_end = to_utc_safe(end)
+            # Prepare period slices
+            period_slices = []
+            slice_start = full_period_start
+            while slice_start < full_period_end:
+                slice_end = min(
+                    slice_start + timedelta(days=period_slice_days),
+                    full_period_end,
+                )
+                period_slices.append((slice_start, slice_end))
+                slice_start = slice_end + timedelta(days=1)
+        else:
+            period_slices = [(to_utc_safe(start), to_utc_safe(end))]
 
-        # Parse and prepare output
-        resp_dict = Forecasts.get_openmeteo(
-            Records.select_api_url(
-                "https://previous-runs-api.open-meteo.com/v1/forecast",
-                "https://customer-previous-runs-api.open-meteo.com/v1/forecast",
-                api_key,
-            ),
-            params,
-            verbose,
-        )
+        # Collect and prepare all slices (only one single if no slicing)
+        forecasts_for_slices = []
+        for slice_start, slice_end in period_slices:
+            # Build query params
+            params = {
+                "latitude": lat_lon[0],
+                "longitude": lat_lon[1],
+                "start_date": slice_start.strftime("%Y-%m-%d"),
+                "end_date": slice_end.strftime("%Y-%m-%d"),
+                "hourly": ",".join(all_measures_with_horizons),
+                "timezone": "GMT",
+            }
+            # If an API key is provided, add it to the request parameters
+            if api_key is not None:
+                params["apikey"] = api_key
 
-        # Prepare Observations init
-        units = resp_dict["hourly_units"]
-        units.pop("time", None)
-
-        # Prepare the hourly records and transform to long per meteo var (along the previous days)
-        hourly_values = Forecasts.prepare_hourly_records(resp_dict)
-        # Rename day0 variables and transform into long (over the past days), with several dataframes (one per weather variable)
-        hourly_values = Forecasts.rename_day0_columns(
-            hourly_values, all_measures_with_horizons
-        )
-        hourly_values = Forecasts.melt_by_weather_variable(hourly_values)
-        # Join all the melted dataframes on valid_datetime and past_day,
-        # to have a wide table but not column by past day
-        hourly_values = reduce(
-            lambda left, right: left.join(
-                right, on=["valid_datetime", "days_forecast_horizon"], how="inner"
-            ),
-            hourly_values,
-        )
-
-        # Add the init_datetime column: round down valid_datetime to day and subtract past days
-        hourly_values = Forecasts.add_initial_datetime(hourly_values)
-        # Clean columns and names
-        # drop the useless past_day column
-        hourly_values = (
-            hourly_values
-            # drop the "_previous_day0" suffix in columns names (only if ending with it)
-            .rename(
-                {
-                    c: c.removesuffix("_previous")
-                    for c in hourly_values.columns
-                    if c.endswith("_previous")
-                }
+            # Parse and prepare output
+            resp_dict = Forecasts.get_openmeteo(
+                Records.select_api_url(
+                    "https://previous-runs-api.open-meteo.com/v1/forecast",
+                    "https://customer-previous-runs-api.open-meteo.com/v1/forecast",
+                    api_key,
+                ),
+                params,
+                cache_enabled=cache_enabled,
+                cache_expire_after=cache_expire_after,
+                cache_sqlite_filename=cache_sqlite_filename,
             )
-        )
 
-        # Reorder and sort columns
-        hourly_values = Records.reorder_columns(hourly_values).sort(
-            "init_datetime", "valid_datetime"
-        )
-        # Check regular time grid within init_datetime
-        Records.is_regular_time(hourly_values)
+            # Prepare Observations init
+            units = resp_dict["hourly_units"]
+            units.pop("time", None)
 
-        return cls(
-            (resp_dict["latitude"], resp_dict["longitude"]),
-            resp_dict["elevation"],
-            units,
-            forecast_horizon_days_max,
-            hourly_values,
-        )
+            # Prepare the hourly records and transform to long per meteo var (along the previous days)
+            hourly_values = Forecasts.prepare_hourly_records(resp_dict)
+            # Rename day0 variables and transform into long (over the past days), with several dataframes (one per weather variable)
+            hourly_values = Forecasts.rename_day0_columns(
+                hourly_values, all_measures_with_horizons
+            )
+            hourly_values = Forecasts.melt_by_weather_variable(hourly_values)
+            # Join all the melted dataframes on valid_datetime and past_day,
+            # to have a wide table but not column by past day
+            hourly_values = reduce(
+                lambda left, right: left.join(
+                    right, on=["valid_datetime", "days_forecast_horizon"], how="inner"
+                ),
+                hourly_values,
+            )
+
+            # Add the init_datetime column: round down valid_datetime to day and subtract past days
+            hourly_values = Forecasts.add_initial_datetime(hourly_values)
+            # Clean columns and names
+            # drop the useless past_day column
+            hourly_values = (
+                hourly_values
+                # drop the "_previous_day0" suffix in columns names (only if ending with it)
+                .rename(
+                    {
+                        c: c.removesuffix("_previous")
+                        for c in hourly_values.columns
+                        if c.endswith("_previous")
+                    }
+                )
+            )
+
+            # Reorder and sort columns
+            hourly_values = Records.reorder_columns(hourly_values).sort(
+                "init_datetime", "valid_datetime"
+            )
+            # Check regular time grid within init_datetime (within the slice    )
+            Records.is_regular_time(hourly_values)
+
+            # Prepare the forecasts instance and collect it
+            fore = cls(
+                (resp_dict["latitude"], resp_dict["longitude"]),
+                resp_dict["elevation"],
+                units,
+                forecast_horizon_days_max,
+                hourly_values,
+            )
+            forecasts_for_slices.append(fore)
+
+        return Forecasts.bind_forecasts(forecasts_for_slices)

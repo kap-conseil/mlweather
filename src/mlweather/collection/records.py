@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
+import warnings
 from polars import DataFrame, col, selectors as cs
 from requests import Request, Session
+from requests_cache import CachedSession
 
 from mlweather.collection.variables import ADMISSIBLE_VARIABLES
 
@@ -57,20 +59,55 @@ class Records(ABC):
         return True
 
     @staticmethod
-    def get_openmeteo(base_url: str, params: dict, verbose: bool = False) -> dict:
-        # Prepare the request
-        req = Request("GET", base_url, params=params)
-        prepared = req.prepare()
-        # Print the full URL before sending the request
-        if verbose:
-            print("Query URL:", prepared.url)
-        with Session() as session:
-            response = session.send(prepared)
-        # Raise error if status code not 200
-        if response.status_code != 200:
-            raise ValueError(
-                f"Error fetching data: {response.status_code} - {response.text}"
+    def get_openmeteo(
+        base_url: str,
+        params: dict,
+        *,
+        cache_enabled: bool = True,
+        cache_expire_after: int = 86400 * 31,
+        cache_sqlite_filename: str = "api_cache.sqlite",
+        retry_attempts: int = 3,
+    ) -> dict:
+        # For caching strategy, prepare the session: either with cached or not (base requests)
+        if cache_enabled:
+            # Create a persistent session
+            session = CachedSession(
+                cache_name=cache_sqlite_filename,  # SQLite file
+                backend="sqlite",
+                expire_after=cache_expire_after,  # TTL
+                stale_if_error=True,
             )
+            # Query
+            response = session.get(base_url, params=params)
+            print("Is from cache => ", response.from_cache)
+        else:
+            # Using base requests session
+            session = Session()
+
+        # Retry logic
+        attempts_number = 1
+        while attempts_number <= retry_attempts:
+            try:
+                # Run the request
+                response = session.get(base_url, params=params)
+                # Exit because the job is nicely done
+                break
+            # If failed, retry if not too many attempts
+            except Exception as e:
+                # Log the retry attempt
+                warnings.warn(
+                    f"Request failed at attempt {attempts_number}, retrying...",
+                    RuntimeWarning,
+                )
+                # Iterate on the attempt number
+                attempts_number += 1
+                # If too many attempts, raise the error and stop iterations
+                if attempts_number > retry_attempts:
+                    raise e
+                # Go to next iteration to retry
+                continue
+
+        # Parse response
         content = response.json()
         # Explicit error if error in response json
         if "error" in content:

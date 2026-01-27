@@ -62,7 +62,7 @@ def test_get_openmeteo():
     }
 
     # Fetch
-    result = Records.get_openmeteo(base_url, params, verbose=False)
+    result = Records.get_openmeteo(base_url, params, cache_enabled=False)
 
     # Check key existence and data length
     assert "hourly" in result
@@ -85,7 +85,7 @@ def test_get_openmeteo_with_api_key():
     }
 
     # Fetch
-    result = Records.get_openmeteo(base_url, params, verbose=False)
+    result = Records.get_openmeteo(base_url, params, cache_enabled=False)
 
     # Check key existence
     assert "hourly" in result
@@ -106,7 +106,7 @@ def test_prepare_hourly_record_table():
     }
 
     # Fetch
-    result = Records.get_openmeteo(base_url, params, verbose=False)
+    result = Records.get_openmeteo(base_url, params, cache_enabled=False)
     # Prepare record table
     record_table = Records.prepare_hourly_records(result)
 
