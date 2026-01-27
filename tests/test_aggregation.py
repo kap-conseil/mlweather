@@ -124,7 +124,7 @@ class TestFeatureGenerator:
             ]
         )
 
-        features_obs_only = featgen_obs_only.generate_features(
+        generated_features_obs_only = featgen_obs_only.generate_features(
             features_datetimes,
             observations=obs,
             control_aggregations=False,
@@ -132,11 +132,13 @@ class TestFeatureGenerator:
 
         # Check features values
         # missing values should be there because of the 2-hour aggregation: first hour has not aggregation
-        assert features_obs_only["precipitation_sum_obs_7200s"].is_null().sum() == (
+        assert generated_features_obs_only[
+            "precipitation_sum_obs_7200s"
+        ].is_null().sum() == (
             Aggregation.get_steps_in_agg_periods(timedelta(hours=2)) - 1
         )
         # Check values : since precipitation values were replaced by 1.0, the sum over 2 hours should be 2.0
-        assert features_obs_only.filter(
+        assert generated_features_obs_only.filter(
             col("precipitation_sum_obs_7200s").is_not_null()
         )["precipitation_sum_obs_7200s"].unique().to_list() == [2.0]
 
@@ -150,7 +152,7 @@ class TestFeatureGenerator:
             ]
         )
 
-        features_fore_only = features_fore_only.generate_features(
+        generated_features_fore_only = features_fore_only.generate_features(
             features_datetimes,
             forecasts=fore,
             control_aggregations=False,
@@ -158,10 +160,49 @@ class TestFeatureGenerator:
 
         # Check features values
         # missing values should be there because of the 2-hour aggregation: first hour has not aggregation
-        assert features_fore_only["precipitation_sum_fore_7200s"].is_null().sum() == (
+        assert generated_features_fore_only[
+            "precipitation_sum_fore_7200s"
+        ].is_null().sum() == (
             Aggregation.get_steps_in_agg_periods(timedelta(hours=2)) - 1
         )
         # # Check values : since precipitation values were replaced by 1.0, the sum over 2 hours should be 2.0
-        # assert features_fore_only.filter(
-        #     col("precipitation_sum_fore_7200s").is_not_null()
-        # )["precipitation_sum_fore_7200s"].unique().to_list() == [2.0]
+        assert generated_features_fore_only.filter(
+            col("precipitation_sum_fore_7200s").is_not_null()
+        )["precipitation_sum_fore_7200s"].unique().to_list() == [2.0]
+
+        # 3/ case: both observations and forecasts -----------------------------
+        # init the feature generator
+        features_both = FeatureGenerator(
+            [
+                Aggregation(
+                    col("precipitation").sum(),
+                    observation_period=timedelta(hours=2),
+                    forecast_period=timedelta(hours=2),
+                ),
+            ]
+        )
+
+        generated_features_both = features_both.generate_features(
+            features_datetimes,
+            observations=obs,
+            forecasts=fore,
+            control_aggregations=False,
+        )
+
+        # Check features values
+        # missing values should be there because of the 4-hour aggregation: first three hours has not aggregation
+        obs_period = features_both.aggregations[0].observation_period
+        fore_period = features_both.aggregations[0].forecast_period
+        assert obs_period is not None
+        assert fore_period is not None
+        assert generated_features_both[
+            "precipitation_sum_obs_7200s_fore_7200s"
+        ].is_null().sum() == (
+            Aggregation.get_steps_in_agg_periods(obs_period)
+            + Aggregation.get_steps_in_agg_periods(fore_period)
+            - 1
+        )
+        # # Check values : since precipitation values were replaced by 1.0, the sum over 2 hours should be 2.0
+        assert generated_features_both.filter(
+            col("precipitation_sum_obs_7200s_fore_7200s").is_not_null()
+        )["precipitation_sum_obs_7200s_fore_7200s"].unique().to_list() == [4.0]

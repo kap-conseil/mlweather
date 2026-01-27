@@ -3,3 +3,4 @@
 - add slicing of forecast collect (1h)
 - add caching (shared accross requests) (2h)
 - add async to speed up download (httpx) (2h)
+- Unique aggregations only

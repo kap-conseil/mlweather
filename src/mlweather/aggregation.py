@@ -16,6 +16,7 @@ from polars import (
 from polars._utils.convert import parse_as_duration_string
 import re
 from datetime import datetime, timedelta
+from geopy.distance import geodesic
 
 from mlweather.collection.observations import Observations
 from mlweather.collection.forecasts import Forecasts
@@ -502,6 +503,17 @@ class FeatureGenerator:
             fore = None
         else:
             fore = forecasts.record_table
+        # If mixed obs and forecasts, check that the locations of the two does not differ more than 5 km
+        if isinstance(observations, Observations) and isinstance(forecasts, Forecasts):
+            if geodesic(observations.lat_lon, forecasts.lat_lon).km > 5.0:
+                raise ValueError(
+                    f"""
+                    The locations of the observations and forecasts differ by more than 5 km.
+                    The location of Observations is {observations.lat_lon} and the location of Forecasts is {forecasts.lat_lon}.
+                    The distance (in km) found between them is {geodesic(observations.lat_lon, forecasts.lat_lon).km}.
+                    """
+                )
+        # Bind properly the two sources
         all_records = self._prepare_all_records(obs, fore)
         # Work by pair of periods (obs and forecast), filter and apply the aggregation expressions over all focal valid_datetime
         # collector for the dataframes per period set

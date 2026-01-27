@@ -13,7 +13,7 @@ class Observations(Records):
     Records are hourly data.
 
     Attributes:
-        lat_lon (tuple): Latitude and longitude coordinates as (float, float).
+        lat_lon (tuple): Latitude and longitude coordinates as (float, float). They are the effective locations used for the data collection, not the queried ones. To allow to monitor the real sampling location of observations.
         elevation (float): Elevation in meters.
         units (dict): Dictionary mapping measurement names to their units.
         records (DataFrame): Polars DataFrame containing the weather records.

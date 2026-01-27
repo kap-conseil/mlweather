@@ -12,7 +12,7 @@ class Forecasts(Records):
     Records are hourly data.
 
     Attributes:
-        lat_lon (tuple): Latitude and longitude coordinates as (float, float).
+        lat_lon (tuple): Latitude and longitude coordinates as (float, float). They are the effective locations used for the data collection, not the queried ones. To allow to monitor the real sampling location of observations.
         elevation (float): Elevation in meters.
         units (dict): Dictionary mapping measurement names to their units.
         forecast_horizon_days_max (int): Maximum number of past days of forecast horizon to retrieve. Forecast collection start from current day forecast (horizon = 0 day) to forecast with horizon up to forecast_horizon_days_max (included).

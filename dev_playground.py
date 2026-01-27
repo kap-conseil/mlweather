@@ -40,26 +40,14 @@ feat_gen = FeatureGenerator(
             observation_period=timedelta(days=30),
             forecast_period=timedelta(days=7),
         ),
-        Aggregation(
-            col("temperature_2m").sum() / 24,
-            observation_period=timedelta(days=30),
-            forecast_period=timedelta(days=7),
-        ),
+        # Aggregation(
+        #     col("temperature_2m").sum(),
+        #     observation_period=timedelta(days=30),
+        #     forecast_period=timedelta(days=7),
+        # ),
     ],  # Daily mean temperature]
 )
 
 features_datetimes = [
-    datetime(2025, 12, 1, tzinfo=timezone.utc),
-    datetime(2025, 12, 2, tzinfo=timezone.utc),
-    datetime(2025, 12, 3, tzinfo=timezone.utc),
-    datetime(2025, 12, 4, tzinfo=timezone.utc),
-    datetime(2025, 12, 5, tzinfo=timezone.utc),
-    datetime(2025, 12, 6, tzinfo=timezone.utc),
-    datetime(2025, 12, 7, tzinfo=timezone.utc),
-    datetime(2025, 12, 8, tzinfo=timezone.utc),
-    datetime(2025, 12, 9, tzinfo=timezone.utc),
+    datetime(2025, 12, 1, tzinfo=timezone.utc) + timedelta(days=7),
 ]
-
-feat_gen.generate_features(
-    features_datetimes, observations=observations, forecasts=forecasts
-).write_csv("features.csv")
