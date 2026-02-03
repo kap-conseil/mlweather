@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 import warnings
 from polars import DataFrame, col, selectors as cs
 from requests import Session
-from requests_cache import CachedSession
+from requests_cache import CachedSession, orjson_serializer
 
 from mlweather.collection.variables import ADMISSIBLE_VARIABLES
 
@@ -76,6 +76,7 @@ class Records(ABC):
                 backend="sqlite",
                 expire_after=cache_expire_after,  # TTL
                 stale_if_error=True,
+                serializer=orjson_serializer,
             )
             # Query
             response = session.get(base_url, params=params)
