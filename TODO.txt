@@ -1,6 +1,3 @@
-- Create a base README for V0.2 (1h)
 - Clean internal names "_my_function" where it should be added (30min)
-- add slicing of forecast collect (1h)
-- add caching (shared accross requests) (2h)
 - add async to speed up download (httpx) (2h)
 - Unique aggregations only

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import warnings
 from polars import DataFrame, col, selectors as cs
-from requests import Request, Session
+from requests import Session
 from requests_cache import CachedSession
 
 from mlweather.collection.variables import ADMISSIBLE_VARIABLES
@@ -79,7 +79,6 @@ class Records(ABC):
             )
             # Query
             response = session.get(base_url, params=params)
-            print("Is from cache => ", response.from_cache)
         else:
             # Using base requests session
             session = Session()
@@ -90,6 +89,8 @@ class Records(ABC):
             try:
                 # Run the request
                 response = session.get(base_url, params=params)
+                # Parse response here to cover JSONDecodeError in the try block
+                content = response.json()
                 # Exit because the job is nicely done
                 break
             # If failed, retry if not too many attempts
@@ -106,9 +107,6 @@ class Records(ABC):
                     raise e
                 # Go to next iteration to retry
                 continue
-
-        # Parse response
-        content = response.json()
         # Explicit error if error in response json
         if "error" in content:
             raise ValueError(f"Request error: {content['reason']}")

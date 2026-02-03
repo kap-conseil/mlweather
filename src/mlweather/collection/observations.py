@@ -106,6 +106,9 @@ class Observations(Records):
             and regularity information.
         """
         # Check arguments
+        # start and end should be datetime objects
+        if not isinstance(start, datetime) or not isinstance(end, datetime):
+            raise TypeError("start and end must be datetime objects.")
         # control the variable names
         cls.are_var_names_valid(variables_names)
         # control the length of period_slice_days
