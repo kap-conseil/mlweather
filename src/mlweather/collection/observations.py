@@ -74,6 +74,7 @@ class Observations(Records):
         cache_sqlite_filename: str = "api_cache.sqlite",
         query_by_period_slices: bool = False,
         period_slice_days: int = 31 * 3,
+        verbose: bool = False,
     ):
         """
         Retrieve weather observations from Open-Meteo API (hourly data) for a specified location and a time period.
@@ -100,6 +101,7 @@ class Observations(Records):
                 Defaults to False.
             period_slice_days (int, optional): Number of days for each period slice when
                 querying by period slices. Defaults to 31 * 3 (approximately 3 months).
+            verbose (bool, optional): If True, enables verbose logging of the data retrieval process.
         Returns:
             cls: An instance of the class containing the retrieved weather observations
             with location coordinates, elevation, measurement units, hourly values,
@@ -161,6 +163,7 @@ class Observations(Records):
                 cache_enabled=cache_enabled,
                 cache_expire_after=cache_expire_after,
                 cache_sqlite_filename=cache_sqlite_filename,
+                verbose=verbose,
             )
 
             # Prepare Observations init

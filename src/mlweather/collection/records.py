@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 import warnings
 from polars import DataFrame, col, selectors as cs
 from requests import Session
-from requests_cache import CachedSession, orjson_serializer
+from requests_cache import CachedSession, logger, orjson_serializer
 
 from mlweather.collection.variables import ADMISSIBLE_VARIABLES
 
@@ -67,6 +67,7 @@ class Records(ABC):
         cache_expire_after: int = 86400 * 31,
         cache_sqlite_filename: str = "api_cache.sqlite",
         retry_attempts: int = 3,
+        verbose: bool = False,
     ) -> dict:
         # For caching strategy, prepare the session: either with cached or not (base requests)
         if cache_enabled:
@@ -84,12 +85,21 @@ class Records(ABC):
             # Using base requests session
             session = Session()
 
+        # if verbose, tell if from cache or not (only for cached session)
+        if verbose and cache_enabled:
+            if response.from_cache:
+                logger.info("Response retrieved from cache")
+            else:
+                logger.info("Response retrieved from server")
         # Retry logic
         attempts_number = 1
         while attempts_number <= retry_attempts:
             try:
                 # Run the request
                 response = session.get(base_url, params=params)
+                # If verbose info URL
+                if verbose:
+                    logger.info(f"Request URL: {response.url}")
                 # Parse response here to cover JSONDecodeError in the try block
                 content = response.json()
                 # Exit because the job is nicely done

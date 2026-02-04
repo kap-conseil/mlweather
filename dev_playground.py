@@ -1,6 +1,6 @@
 from datetime import datetime, timezone, timedelta
 from polars import col, concat
-
+import logging
 
 from mlweather.collection.forecasts import Forecasts
 from mlweather.collection.observations import Observations
@@ -9,6 +9,8 @@ from mlweather.aggregation import FeatureGenerator
 from mlweather.collection.records import Records
 from mlweather.collection.variables import ADMISSIBLE_VARIABLES
 
+# Set the root logger level to Info
+logging.basicConfig(level=logging.INFO)
 
 loc = (49.875255, -4.121925)  # Paris coordinates
 start_period = datetime(2024, 10, 1, tzinfo=timezone.utc)
@@ -23,6 +25,7 @@ observations = Observations.collect(
     end=end_period,
     variables_names=["temperature_2m", "precipitation"],
     query_by_period_slices=True,
+    verbose=True,
 )
 print("collected in ", datetime.now() - start_count)
 
