@@ -14,7 +14,7 @@ dependencies = [
     "pytest>=8.4.0,<9",
     "pytest-cov>=6.1.1,<7",
     "requests>=2.32.3,<3",
-    "requests-cache[json]>=1.3.0,<2",
+    "requests-cache>=1.3.0",
 ]
 
 [build-system]
