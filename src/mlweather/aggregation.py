@@ -493,6 +493,7 @@ class FeatureGenerator:
         observations: Observations | None = None,
         forecasts: Forecasts | None = None,
         control_aggregations=False,
+        obs_forecast_max_distance: float = 10.0,
     ):
         # Assemble the records (observations and forecast together) in a (lazy) all_records table
         if observations is None:
@@ -505,10 +506,13 @@ class FeatureGenerator:
             fore = forecasts.record_table
         # If mixed obs and forecasts, check that the locations of the two does not differ more than 5 km
         if isinstance(observations, Observations) and isinstance(forecasts, Forecasts):
-            if geodesic(observations.lat_lon, forecasts.lat_lon).km > 5.0:
+            if (
+                geodesic(observations.lat_lon, forecasts.lat_lon).km
+                > obs_forecast_max_distance
+            ):
                 raise ValueError(
                     f"""
-                    The locations of the observations and forecasts differ by more than 5 km.
+                    The locations of the observations and forecasts differ by more than {obs_forecast_max_distance} km.
                     The location of Observations is {observations.lat_lon} and the location of Forecasts is {forecasts.lat_lon}.
                     The distance (in km) found between them is {geodesic(observations.lat_lon, forecasts.lat_lon).km}.
                     """
