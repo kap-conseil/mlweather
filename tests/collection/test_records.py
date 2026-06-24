@@ -83,7 +83,7 @@ def test_get_openmeteo_with_api_key():
         "latitude": 52.52,
         "longitude": 13.41,
         "hourly": "temperature_2m,precipitation",
-        "apikey": os.getenv("OPENMETEO_API_KEY"),  # Example API key
+        "apikey": os.getenv("OPENMETEO_API_KEY"),
     }
 
     # Fetch

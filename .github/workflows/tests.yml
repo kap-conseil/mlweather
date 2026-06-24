@@ -30,4 +30,6 @@ jobs:
           uv sync
 
       - name: Run tests
+        env:
+          OPENMETEO_API_KEY: ${{ secrets.OPENMETEO_API_KEY }}
         run: uv run pytest
