@@ -1,6 +1,8 @@
 from datetime import datetime, timezone, timedelta
+from dotenv import load_dotenv
 from polars import col, concat
 import logging
+import os
 
 from mlweather.collection.forecasts import Forecasts
 from mlweather.collection.observations import Observations
@@ -9,11 +11,13 @@ from mlweather.aggregation import FeatureGenerator
 from mlweather.collection.records import Records
 from mlweather.collection.variables import ADMISSIBLE_VARIABLES
 
+
+load_dotenv()
 # Set the root logger level to Info
 logging.basicConfig(level=logging.INFO)
 
 loc = (49.875255, -4.121925)  # Paris coordinates
-start_period = datetime(2024, 10, 1, tzinfo=timezone.utc)
+start_period = datetime(2025, 10, 1, tzinfo=timezone.utc)
 end_period = datetime(2026, 1, 9, tzinfo=timezone.utc)
 
 
@@ -26,6 +30,7 @@ observations = Observations.collect(
     variables_names=["temperature_2m", "precipitation"],
     query_by_period_slices=True,
     verbose=True,
+    api_key=os.getenv("OPENMETEO_API_KEY"),
 )
 print("collected in ", datetime.now() - start_count)
 
@@ -38,6 +43,8 @@ forecasts = Forecasts.collect(
     start=start_period,
     end=end_period,
     variables_names=["temperature_2m", "precipitation"],
+    verbose=True,
+    api_key=os.getenv("OPENMETEO_API_KEY"),
 )
 print("collected in ", datetime.now() - start_count)
 
@@ -72,32 +79,3 @@ feat_gen = FeatureGenerator(
 features_datetimes = [
     datetime(2025, 12, 1, tzinfo=timezone.utc) + timedelta(days=7),
 ]
-
-
-from requests_cache import CachedSession
-
-# Create a persistent session
-session = CachedSession(
-    cache_name="api_cache",  # SQLite file
-    backend="sqlite",
-    expire_after=86400,  # 1 day TTL
-)
-
-url = "https://httpbin.org/get"
-
-session.prepare_request
-# Use the session instead of requests
-response = session.get(url)
-print(response.from_cache)
-
-# First request (should fetch from the web)
-response = session.get(url)
-print("First request, from cache?", response.from_cache)
-print(response.json())
-
-# Second request (should hit the cache)
-response = session.get(url)
-print("Second request, from cache?", response.from_cache)
-print(response.json())
-
-reponse

@@ -70,10 +70,10 @@ class Forecasts(Records):
     @staticmethod
     def rename_day0_columns(
         record_table: DataFrame, queried_with_horizon_variables: list[str]
-    ):
+    ) -> DataFrame:
         """
         Rename the columns corresponding to previous_day0 to have a consistent naming
-        convention with the other forecast horizons, i.e.revious days (i.e., adding _previous_day0 suffix).
+        convention with the other forecast horizons, i.e.previous days (i.e., adding _previous_day0 suffix).
         Args:
             record_table (DataFrame): The DataFrame containing the weather records.
             queried_with_horizon_variables (list[str]): List of variable names that were queried
@@ -82,19 +82,19 @@ class Forecasts(Records):
             DataFrame: The DataFrame with renamed columns for day 0 with now suffix previous_day0 variables (consistent var naming with other past days).
         """
         # Identify variables in day0: not the valid_datetime and not in queried past days (that include XXX_previous_day0 at the query, not into the hourly reords where the suffix is missing for day 0)
-        days0_weather_variables = (
+        day0_weather_variables = (
             set(record_table.columns)
             - {"valid_datetime"}
             - set(queried_with_horizon_variables)
         )
         # Create renaming mapping
-        renaming_dict = {var: f"{var}_previous_day0" for var in days0_weather_variables}
+        renaming_dict = {var: f"{var}_previous_day0" for var in day0_weather_variables}
 
         # Effectively rename
         return record_table.rename(renaming_dict)
 
     @staticmethod
-    def melt_by_weather_variable(hourly_records: DataFrame):
+    def melt_by_weather_variable(hourly_records: DataFrame) -> list[DataFrame]:
         """
         Melt the hourly records DataFrame (wide) to have one row per valid_datetime and forecast_horizon (new long side)
         for each weather variable.
@@ -110,6 +110,11 @@ class Forecasts(Records):
             for c in hourly_records.columns
             if re.search(r"_day\d+$", c)
         }
+        # Check that melt_group is not empty
+        if not groups_for_melt:
+            raise ValueError(
+                "No weather variables found for melting. Ensure that the DataFrame contains columns with '_dayX' suffixes."
+            )
         # By weather variable, melt the corresponding columns
         # 1/ select the valid_datetime and the columns for that weather var)
         # 2/ unpivot them to have valid_datetime, past_day, value
@@ -191,7 +196,7 @@ class Forecasts(Records):
         query_by_period_slices: bool = False,
         period_slice_days: int = 31 * 3,
         verbose: bool = False,
-    ):
+    ) -> "Forecasts":
         """
         Retrieve weather forecasts from Open-Meteo API (hourly data) for a specified location and a time period,
         given for the past days horizons of forecast.
@@ -228,7 +233,7 @@ class Forecasts(Records):
         if not isinstance(start, datetime) or not isinstance(end, datetime):
             raise TypeError("start and end must be datetime objects.")
         # control the variable names
-        cls.are_var_names_valid(variables_names)
+        cls.validate_var_names(variables_names)
 
         # control the length of period_slice_days
         if period_slice_days < 7:
@@ -320,7 +325,7 @@ class Forecasts(Records):
             # drop the useless past_day column
             hourly_values = (
                 hourly_values
-                # drop the "_previous_day0" suffix in columns names (only if ending with it)
+                # drop the "_previous" suffix in columns names (only if ending with it)
                 .rename(
                     {
                         c: c.removesuffix("_previous")
