@@ -106,9 +106,11 @@ class Records(ABC):
                 break
             # If failed, retry if not too many attempts
             except Exception as e:
+                # Retrieve the failed url if available, otherwise use the base url
+                failed_url = response.url if "response" in locals() else base_url
                 # Log the retry attempt
                 warnings.warn(
-                    f"Request failed at attempt {attempts_number}, retrying...",
+                    f"Request to {failed_url} failed at attempt {attempts_number}, retrying...",
                     RuntimeWarning,
                 )
                 # Iterate on the attempt number
