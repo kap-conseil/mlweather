@@ -6,6 +6,8 @@ A high-performance Python library to collect with ease weather data - observatio
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Tests](https://github.com/kap-conseil/mlweather/actions/workflows/tests.yml/badge.svg)](https://github.com/kap-conseil/mlweather/actions/workflows/tests.yml)
+[![Ruff](https://github.com/kap-conseil/mlweather/actions/workflows/lint.yml/badge.svg)](https://github.com/kap-conseil/mlweather/actions/workflows/lint.yml)
+[![Coverage](https://codecov.io/gh/kap-conseil/mlweather/branch/main/graph/badge.svg)](https://codecov.io/gh/kap-conseil/mlweather)
 
 This project is supported by:   
 

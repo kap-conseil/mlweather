@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from functools import reduce
 from polars import (
     Expr,
@@ -340,7 +339,7 @@ class FeatureGenerator:
         if len(missing_datetimes) > 0:
             missing_datetimes_list = sorted(missing_datetimes)
             raise ValueError(
-                f"The following focal valid_datetime are missing in the weather records:\n"
+                "The following focal valid_datetime are missing in the weather records:\n"
                 + "\n".join(
                     "       " + str(dt) for dt in sorted(missing_datetimes_list)
                 )

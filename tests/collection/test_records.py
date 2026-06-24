@@ -1,8 +1,6 @@
-from unittest import result
-
 import pytest
 import os
-from polars import DataFrame, Datetime, Float64, String
+from polars import DataFrame, Datetime, Float64
 from dotenv import load_dotenv
 
 from mlweather.collection.records import Records
@@ -64,14 +62,14 @@ def test_get_openmeteo():
     }
 
     # Fetch
-    result = Records.get_openmeteo(base_url, params, cache_enabled=False)
+    results = Records.get_openmeteo(base_url, params, cache_enabled=False)
 
     # Check key existence and data length
-    assert "hourly" in result
-    assert "time" in result["hourly"]
-    assert "temperature_2m" in result["hourly"]
-    assert "precipitation" in result["hourly"]
-    assert len(result["hourly"]["time"]) == 48  # 2 days of hourly data
+    assert "hourly" in results
+    assert "time" in results["hourly"]
+    assert "temperature_2m" in results["hourly"]
+    assert "precipitation" in results["hourly"]
+    assert len(results["hourly"]["time"]) == 48  # 2 days of hourly data
 
 
 # 2 / With API key on forecasts
