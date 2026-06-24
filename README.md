@@ -1,11 +1,18 @@
 # MLWeather
 
-**Version: 0.2.0**
+**Version: 0.2.4**
 
-A high-performance Python library for collecting with ease weather date - observations and forecasts and preparing ML-ready features.
+A high-performance Python library to collect with ease weather data - observations and forecasts - and prepare ML-ready features at blazing speed.
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![Tests](https://github.com/kap-conseil/mlweather/actions/workflows/tests.yml/badge.svg)](https://github.com/kap-conseil/mlweather/actions/workflows/tests.yml)
 
+This project is supported by:   
+
+<a href="https://www.bretagne.bzh"><img src="https://upload.wikimedia.org/wikipedia/fr/thumb/8/83/R%C3%A9gion-bretagne-logo.svg/250px-R%C3%A9gion-bretagne-logo.svg.png?_=20190416150425" alt="Région Bretagne" width="150" /></a>  
+
+in the context of *Plateforme pour l'IA du vivant*.
+    
 
 ## Installation
 
@@ -14,13 +21,18 @@ A high-performance Python library for collecting with ease weather date - observ
 ``` shell
 pip install "git+https://github.com/kap-conseil/mlweather.git"
 ```
+### Using UV
 
-### From source github using uv (HTTPS)
+``` shell
+uv add mlweather
+```
+
+### From source github using uv
 
 ``` bash
 # Main version for the last tagged release
 uv add mlweather "git+https://github.com/kap-conseil/mlweather.git"
-# For a specific tag
+# For a specific branch (e.g. dev)
 uv add mlweather "git+ssh://git@github.com/kap-conseil/mlweather.git@dev"
 ```
 
