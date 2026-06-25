@@ -1,6 +1,6 @@
 # MLWeather
 
-mlweather is a Python toolkit for collecting raw high precision weather data into machine-learning-ready features at blazing speed.
+`mlweather` is a Python toolkit for collecting raw high precision weather data into machine-learning-ready features at blazing speed.
 
 Tired of building pipleline to collect weather data, control them, aggreagate them and prepare them for machine learning ? This package is for you. It provides a simple and efficient way to collect weather data (observations and forecasts) from the [Open-Meteo](https://open-meteo.com/) API, aggregate them over any period using any aggregation function, and prepare them for machine learning.
 
@@ -10,14 +10,7 @@ Fast-track feature preparation so you can focus on energy, consumption, crop gro
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Tests](https://github.com/kap-conseil/mlweather/actions/workflows/tests.yml/badge.svg)](https://github.com/kap-conseil/mlweather/actions/workflows/tests.yml)
 [![Ruff](https://github.com/kap-conseil/mlweather/actions/workflows/lint.yml/badge.svg)](https://github.com/kap-conseil/mlweather/actions/workflows/lint.yml)
-[![Coverage Artifact](https://img.shields.io/github/actions/workflow/status/kap-conseil/mlweather/tests.yml?label=coverage%20artifact)](https://github.com/kap-conseil/mlweather/actions/workflows/tests.yml)
-
-This project is supported by:   
-
-<a href="https://www.bretagne.bzh"><img src="https://upload.wikimedia.org/wikipedia/fr/thumb/8/83/R%C3%A9gion-bretagne-logo.svg/250px-R%C3%A9gion-bretagne-logo.svg.png?_=20190416150425" alt="Région Bretagne" width="150" /></a>  
-
-in the context of *Platehttps://github.com/kap-conseil/mlweatherforme pour l'IA du vivant*.
-    
+[![Coverage Artifact](https://img.shields.io/github/actions/workflow/status/kap-conseil/mlweather/tests.yml?label=coverage%20artifact)](https://github.com/kap-conseil/mlweather/actions/workflows/tests.yml)  
 
 ## Installation
 
@@ -313,3 +306,14 @@ shape: (9, 4)
  │ UTC                    ┆                        ┆                        ┆                       │
  └────────────────────────┴────────────────────────┴────────────────────────┴───────────────────────┘
 ```
+
+## Attribution 
+
+This package is developed and maintained by [KAP IA](https://www.kap.bzh).
+## Acknowledgements
+
+This project is supported by:   
+
+<a href="https://www.bretagne.bzh"><img src="https://upload.wikimedia.org/wikipedia/fr/thumb/8/83/R%C3%A9gion-bretagne-logo.svg/250px-R%C3%A9gion-bretagne-logo.svg.png?_=20190416150425" alt="Région Bretagne" width="150" /></a>  
+
+in the context of *Plateforme pour l'IA du vivant*.
