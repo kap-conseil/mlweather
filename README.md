@@ -1,9 +1,12 @@
 # MLWeather
 
-**Version: 0.2.4**
+mlweather is a Python toolkit for collecting raw high precision weather data into machine-learning-ready features at blazing speed.
 
-A high-performance Python library to collect with ease weather data - observations and forecasts - and prepare ML-ready features at blazing speed.
+Tired of building pipleline to collect weather data, control them, aggreagate them and prepare them for machine learning ? This package is for you. It provides a simple and efficient way to collect weather data (observations and forecasts) from the [Open-Meteo](https://open-meteo.com/) API, aggregate them over any period using any aggregation function, and prepare them for machine learning.
 
+Fast-track feature preparation so you can focus on energy, consumption, crop growth, or any other ML project that requires highly precise localization and up-to-hourly data across a wide range of variables.
+
+[![Version](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fkap-conseil%2Fmlweather%2Fmain%2Fpyproject.toml&query=%24.project.version&label=version)](https://github.com/kap-conseil/mlweather/blob/main/pyproject.toml)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Tests](https://github.com/kap-conseil/mlweather/actions/workflows/tests.yml/badge.svg)](https://github.com/kap-conseil/mlweather/actions/workflows/tests.yml)
 [![Ruff](https://github.com/kap-conseil/mlweather/actions/workflows/lint.yml/badge.svg)](https://github.com/kap-conseil/mlweather/actions/workflows/lint.yml)
@@ -13,7 +16,7 @@ This project is supported by:
 
 <a href="https://www.bretagne.bzh"><img src="https://upload.wikimedia.org/wikipedia/fr/thumb/8/83/R%C3%A9gion-bretagne-logo.svg/250px-R%C3%A9gion-bretagne-logo.svg.png?_=20190416150425" alt="Région Bretagne" width="150" /></a>  
 
-in the context of *Plateforme pour l'IA du vivant*.
+in the context of *Platehttps://github.com/kap-conseil/mlweatherforme pour l'IA du vivant*.
     
 
 ## Installation
@@ -21,17 +24,13 @@ in the context of *Plateforme pour l'IA du vivant*.
 ### The classic way
 
 ``` shell
-pip install "git+https://github.com/kap-conseil/mlweather.git"
+pip install mlweather
 ```
 ### Using UV
 
 ``` shell
+# Last release from PyPI
 uv add mlweather
-```
-
-### From source github using uv
-
-``` bash
 # Main version for the last tagged release
 uv add mlweather "git+https://github.com/kap-conseil/mlweather.git"
 # For a specific branch (e.g. dev)
@@ -132,6 +131,7 @@ observations = Observations.collect(
     # api_key="your_open_meteo_api_key"  # optional: your Open-Meteo API key for commercial access
 )
 ```
+
 The resulting `observations` object contains metadata (elevation, units) and a Polars DataFrame (`record_table`) with the collected weather records.
 Weather records include `init_datetime` (null because it is not a forecast and evaluated at the `valid_datetime`), `valid_datetime` (time of the observation), and the requested variables.
 The view of the ouput `observations` object is as follows:
