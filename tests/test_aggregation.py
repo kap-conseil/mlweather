@@ -28,9 +28,10 @@ class TestAggregation:
         # Check the number of steps in aggregation periods
         assert Aggregation.get_steps_in_agg_periods(timedelta(hours=24)) == 24
         # Error if negative or zero period
-        with pytest.raises(ValueError) as excinfo:
+        with pytest.raises(ValueError, match="must be equal or greater than zero"):
+            Aggregation.get_steps_in_agg_periods(timedelta(hours=0))
+        with pytest.raises(ValueError, match="must be equal or greater than zero"):
             Aggregation.get_steps_in_agg_periods(timedelta(hours=-1))
-        assert "must be equal or greater than zero" in str(excinfo.value)
 
 
 class TestFeatureGenerator:

@@ -78,7 +78,7 @@ class Aggregation:
 
         return int(period / source_period)
 
-    def get_step_in_obs_period(self) -> int:
+    def get_steps_in_obs_period(self) -> int:
         """
         Get the number of source periods in the observation aggregation period.
         Returns:
@@ -91,7 +91,7 @@ class Aggregation:
 
         return self.get_steps_in_agg_periods(self.observation_period)
 
-    def get_step_in_fore_period(self) -> int:
+    def get_steps_in_fore_period(self) -> int:
         """
         Get the number of source periods in the forecast aggregation period.
         Returns:

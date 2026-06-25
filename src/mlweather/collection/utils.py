@@ -3,21 +3,29 @@ from zoneinfo import ZoneInfo
 
 
 # DATE TREAMENT UTILITIES ######################################################
-def to_utc_safe(dt: datetime, assume_tz=ZoneInfo("UTC")) -> datetime:
+def to_utc_safe(dt: datetime) -> datetime:
     """
-    Convert a naive datetime to a UTC-aware datetime by assuming a timezone (as default).
-    If the datetime is already timezone-aware, converrt to UTC in accordance to original TZ.
+    Return a timezone-aware datetime normalized to UTC.
+
+    Behavior:
+    - If `dt` is naive (`tzinfo is None`), it is interpreted as UTC.
+    - If `dt` is timezone-aware, it is converted to UTC.
+    - If `dt.tzinfo` is present but has no UTC offset (`utcoffset(dt) is None`),
+      a `ValueError` is raised.
+
     Args:
-        dt (datetime): The datetime object to convert.
-        assume_tz (ZoneInfo): The timezone to assume for naive datetime objects.
+        dt (datetime): Datetime to normalize.
+
     Returns:
-        datetime: A timezone aware datetime object.
+        datetime: A timezone-aware datetime in UTC.
+
+    Raises:
+        ValueError: If `dt.tzinfo` is invalid and returns no UTC offset.
     """
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=assume_tz)
+        dt = dt.replace(tzinfo=ZoneInfo("UTC"))
 
-        return dt.astimezone(timezone.utc)
-    elif dt.tzinfo is not None and dt.tzinfo.utcoffset(dt) is None:
+    if dt.tzinfo is not None and dt.tzinfo.utcoffset(dt) is None:
         raise ValueError("Invalid tzinfo with no utcoffset")
-    else:
-        return dt.astimezone(timezone.utc)
+
+    return dt.astimezone(timezone.utc)

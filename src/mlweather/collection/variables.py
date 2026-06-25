@@ -1,12 +1,12 @@
 class Variable:
     """
-    Data class representing a weather variables with associated metadata.
+    Data class representing a weather variable with associated metadata.
 
     Attributes:
         name (str): The name of the measurement.
         unit (str): The unit in which the measurement is expressed.
         value_type (type): The expected data type of the measurement value.
-        valid_time (str): The time or period for which the measurement is valid.
+        measurement (str): The description of the measurement process.
     """
 
     name: str
@@ -26,14 +26,13 @@ class Variable:
         Retrieve the meteorological Variable given its name.
 
         Args:
-            name (str): The name of the meteorological variable to retrieve.
+            variable_name (str): The name of the meteorological variable to retrieve.
         Returns:
-            Variable: The corresponding Variable instance.
+            Variable: A new Variable instance copied from the admissible definition.
         """
         for var in ADMISSIBLE_VARIABLES:
             if var.name == variable_name:
-                return var
-        # If not return then it means not found
+                return cls(var.name, var.unit, var.value_type, var.measurement)
         raise ValueError(
             f"Variable name '{variable_name}' not found in admissible meteorological Variables."
         )

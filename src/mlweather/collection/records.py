@@ -168,7 +168,6 @@ class Records(ABC):
 
     @staticmethod
     def prepare_hourly_records(resp_dict: dict) -> DataFrame:
-        print(DataFrame(resp_dict["hourly"]))
         # records
         hourly_values = (
             DataFrame(resp_dict["hourly"])
