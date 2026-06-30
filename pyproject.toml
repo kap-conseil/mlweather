@@ -1,6 +1,6 @@
 [project]
 name = "mlweather"
-version = "0.2.4"
+version = "0.2.5"
 description = "A package to collect and prepare weather data easily, massively and at blazzing speed for ml jobs - based on the Open-Meteo weather source"
 readme = "README.md"
 license = "Apache-2.0"

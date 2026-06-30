@@ -212,8 +212,8 @@ Each feature is defined by an `Aggregation` that defines the transformation for 
 For instance to compute : 
 - the sum of the observed precipitation over the last 7 days *on observations only*, you can define the first (`aggregation_1`),
 - the sum of the forecasted precipitation over the next 3 days *on forecasts only*, you can define the second (`aggregation_2`),
-- and then combine both aggregations to have the total precipitation over the last 7 days of observations and the next 3 days of forecasts. This case is usefull when you need forecast predictors combining the past observations and forecast at the same time. For example, you need to predict the growth of mushrooms (they love water) in two days from now based on 7 days of precipitations. You can sum the last 5 days of observed precipitations and the next 2 days of forecasted precipitations to have the total precipitations over the 7 days period. `mlweather` allows to define such complex features with ease for current values and for the past (to train properly your model with valid forecast data and not historical data only).
-  
+- and then combine both aggregations to have the total precipitation over the last 7 days of observations and the next 3 days of forecasts. This case is usefull when you need forecast predictors combining the past observations and forecast at the same time. For example, you need to predict the growth of mushrooms (they love water) in two days from now based on 7 days of precipitations (`aggregation_3`). You can sum the last 5 days of observed precipitations and the next 2 days of forecasted precipitations to have the total precipitations over the 7 days period. `mlweather` allows to define such complex features with ease for current values and for the past (to train properly your model with valid forecast data and not historical data only).
+- compute degree days for heating and cooling based on the observed temperature over the last 30 days, you can define the third (`aggregation_4`). Such measures are very common to crop forecasting 
 
 ```python
 from polars import col
@@ -234,6 +234,23 @@ aggregation_3 = Aggregation(
             observation_period=timedelta(days=7),
             forecast_period=timedelta(days=2),
         )
+
+aggregation_4 = Aggregation(
+    (
+        (
+            col("temperature_2m")
+            .min()     
+            .over(col("valid_datetime").dt.truncate("1d"))   # Daily min temperature
+            + col("temperature_2m")
+            .max()      # Daily max temperature
+            .over(col("valid_datetime").dt.truncate("1d"))  # Daily max temperature
+        )
+        / 2     # Degree days are based on the average of daily min and max temperature
+    ).sum()
+    / 24,       # Data records are hourly => divide by 24
+    observation_period=timedelta(days=30),
+    forecast_period=None,
+)
 ```
 
 Any polars expressions (`Expr`) can be used to define the aggregation operation (e.g. `sum`, `mean`, `min`, `max` or your custom `Expr`...) as long as it return a single value.
@@ -255,6 +272,7 @@ feat_gen = FeatureGenerator(
         aggregation_1,
         aggregation_2,
         aggregation_3,
+        aggregation_4,
     ],
 )
 
@@ -279,37 +297,38 @@ ml_features = feat_gen.generate_features(
 It produces a Polars DataFrame with the computed features for the requested time points ready to plug into you ML pipelines:
 
 ```
-shape: (9, 4)
- ┌────────────────────────┬────────────────────────┬────────────────────────┬───────────────────────┐
- │ valid_datetime         ┆ precipitation_sum_obs_ ┆ precipitation_sum_obs_ ┆ precipitation_sum_obs │
- │ ---                    ┆ 7d                     ┆ 3d                     ┆ _7d_fore_…            │
- │ datetime[μs, UTC]      ┆ ---                    ┆ ---                    ┆ ---                   │
- │                        ┆ f64                    ┆ f64                    ┆ f64                   │
- ╞════════════════════════╪════════════════════════╪════════════════════════╪═══════════════════════╡
- │ 2024-06-01 00:00:00    ┆ 34.4                   ┆ 10.0                   ┆ 42.0                  │
- │ UTC                    ┆                        ┆                        ┆                       │
- │ 2024-06-02 00:00:00    ┆ 30.6                   ┆ 9.1                    ┆ 45.8                  │
- │ UTC                    ┆                        ┆                        ┆                       │
- │ 2024-06-03 00:00:00    ┆ 39.6                   ┆ 9.7                    ┆ 37.7                  │
- │ UTC                    ┆                        ┆                        ┆                       │
- │ 2024-06-04 00:00:00    ┆ 28.3                   ┆ 9.8                    ┆ 30.6                  │
- │ UTC                    ┆                        ┆                        ┆                       │
- │ 2024-06-05 00:00:00    ┆ 20.1                   ┆ 9.7                    ┆ 39.6                  │
- │ UTC                    ┆                        ┆                        ┆                       │
- │ 2024-06-06 00:00:00    ┆ 21.1                   ┆ 2.8                    ┆ 29.4                  │
- │ UTC                    ┆                        ┆                        ┆                       │
- │ 2024-06-07 00:00:00    ┆ 12.5                   ┆ 2.6                    ┆ 22.8                  │
- │ UTC                    ┆                        ┆                        ┆                       │
- │ 2024-06-08 00:00:00    ┆ 12.6                   ┆ 2.5                    ┆ 21.6                  │
- │ UTC                    ┆                        ┆                        ┆                       │
- │ 2024-06-09 00:00:00    ┆ 12.2                   ┆ 0.2                    ┆ 12.5                  │
- │ UTC                    ┆                        ┆                        ┆                       │
- └────────────────────────┴────────────────────────┴────────────────────────┴───────────────────────┘
+shape: (9, 5)
+┌───────────────────┬───────────────────┬───────────────────┬───────────────────┬──────────────────┐
+│ valid_datetime    ┆ temperature_2m_mi ┆ precipitation_sum ┆ precipitation_sum ┆ precipitation_su │
+│ ---               ┆ n_over_valid_…    ┆ _obs_7d           ┆ _obs_3d           ┆ m_obs_7d_fore_…  │
+│ datetime[μs, UTC] ┆ ---               ┆ ---               ┆ ---               ┆ ---              │
+│                   ┆ f64               ┆ f64               ┆ f64               ┆ f64              │
+╞═══════════════════╪═══════════════════╪═══════════════════╪═══════════════════╪══════════════════╡
+│ 2024-06-01        ┆ 502.660417        ┆ 34.4              ┆ 10.0              ┆ 43.0             │
+│ 00:00:00 UTC      ┆                   ┆                   ┆                   ┆                  │
+│ 2024-06-02        ┆ 502.966667        ┆ 30.6              ┆ 9.1               ┆ 45.8             │
+│ 00:00:00 UTC      ┆                   ┆                   ┆                   ┆                  │
+│ 2024-06-03        ┆ 503.847917        ┆ 39.6              ┆ 9.7               ┆ 38.4             │
+│ 00:00:00 UTC      ┆                   ┆                   ┆                   ┆                  │
+│ 2024-06-04        ┆ 504.022917        ┆ 28.3              ┆ 9.8               ┆ 30.7             │
+│ 00:00:00 UTC      ┆                   ┆                   ┆                   ┆                  │
+│ 2024-06-05        ┆ 505.314583        ┆ 20.1              ┆ 9.7               ┆ 39.6             │
+│ 00:00:00 UTC      ┆                   ┆                   ┆                   ┆                  │
+│ 2024-06-06        ┆ 508.00625         ┆ 21.1              ┆ 2.8               ┆ 29.3             │
+│ 00:00:00 UTC      ┆                   ┆                   ┆                   ┆                  │
+│ 2024-06-07        ┆ 511.145833        ┆ 12.5              ┆ 2.6               ┆ 23.1             │
+│ 00:00:00 UTC      ┆                   ┆                   ┆                   ┆                  │
+│ 2024-06-08        ┆ 513.754167        ┆ 12.6              ┆ 2.5               ┆ 21.6             │
+│ 00:00:00 UTC      ┆                   ┆                   ┆                   ┆                  │
+│ 2024-06-09        ┆ 518.010417        ┆ 12.2              ┆ 0.2               ┆ 12.5             │
+│ 00:00:00 UTC      ┆                   ┆                   ┆                   ┆                  │
+└───────────────────┴───────────────────┴───────────────────┴───────────────────┴──────────────────┘
 ```
 
 ## Attribution 
 
 This package is developed and maintained by [KAP IA](https://www.kap.bzh).
+
 ## Acknowledgements
 
 This project is supported by:   

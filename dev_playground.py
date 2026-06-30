@@ -66,16 +66,36 @@ feat_gen = FeatureGenerator(
         Aggregation(
             col("temperature_2m").sum() / 24,
             observation_period=timedelta(days=30),
-            forecast_period=timedelta(days=7),
+            forecast_period=None,
         ),
-        # Aggregation(
-        #     col("temperature_2m").sum(),
-        #     observation_period=timedelta(days=30),
-        #     forecast_period=timedelta(days=7),
-        # ),
+        # Degree days: (daily min temperature + daily max temperature) / 2 summed over the observation period (30 days)
+        Aggregation(
+            (
+                (
+                    col("temperature_2m")
+                    .min()
+                    .over(col("valid_datetime").dt.truncate("1d"))
+                    + col("temperature_2m")
+                    .max()
+                    .over(col("valid_datetime").dt.truncate("1d"))
+                )
+                / 2
+            ).sum()
+            / 24,
+            observation_period=timedelta(days=30),
+            forecast_period=None,
+        ),
     ],  # Daily mean temperature]
 )
 
+# Daily range from start_period to end_period
+
 features_datetimes = [
-    datetime(2025, 12, 1, tzinfo=timezone.utc) + timedelta(days=7),
+    start_period + timedelta(days=i)
+    for i in range((end_period - start_period).days + 1)
 ]
+
+feat_gen.generate_features(
+    features_datetimes=features_datetimes,
+    observations=observations,
+)
