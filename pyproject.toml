@@ -1,9 +1,10 @@
 [project]
 name = "mlweather"
-version = "0.2.5"
+version = "0.2.6"
 description = "A package to collect and prepare weather data easily, massively and at blazzing speed for ml jobs - based on the Open-Meteo weather source"
 readme = "README.md"
 license = "Apache-2.0"
+license-files = ["LICENSE"]
 authors = [
     { name = "Julien Gooris", email = "jgooris@kap.bzh" }
 ]
@@ -32,3 +33,7 @@ dev = [
     "ruff>=0.12.0",
     "xlsxwriter>=3.2.9",
 ]
+
+[project.urls]
+Homepage = "https://github.com/kap-conseil/mlweather"
+Issues = "https://github.com/kap-conseil/mlweather/issues"
