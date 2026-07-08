@@ -46,8 +46,6 @@ The packages main roles are:
 
 -   **Aggregate forecasts, observations** or a mixture (e.g. X days of observations followed by Y days of forecasts) using **any function** to have aggregation (e.g. sum, mean, min,...for a given period) over a chosen period for every hour. It allows to combine **observations and forecasts** to have aggregation for periods for observations (e.g. X days) followed by forecasts (e.g. Y days). This approach provides features that exploit the last forecasts and assemble them to prior observations. It provides the average of temperatures mixing the available temperature forecasts and with the preceding observed temperature. You can have aggregations of observations and forecasts for custom meteorological ML features.
 
--   **Simulate forecast based aggregations** for period before available past forecast. If forecasts are used in predict operations, past forecast are needed to correctly train models (same signal in train and predict phases). Howver pas forecast do not come with long history. This package offers simulation tools for aggregation of meteorological variables that are based on past forecast, before the past forecast are available. It is based on the empirical distribution of the empirical error of the aggregation using the forecast (compared to the same aggregation based on observations only data).
-
 ## Source data
 
 Weather data (both historical observations and forecasts - current and past ones) comes from the [Open-Meteo](https://open-meteo.com/) API, which provides access to weather data worldwide. Please consult their usage conditions to either use their free tier or commercial licenses ([Open-Meteo pricing](https://open-meteo.com/en/pricing)).
